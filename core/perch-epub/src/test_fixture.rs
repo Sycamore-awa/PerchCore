@@ -57,7 +57,7 @@ pub(crate) const OPF: &str = r##"<?xml version="1.0" encoding="UTF-8"?>
 </package>
 "##;
 
-/// EPUB3 的导航文档（NAV）。目前只作为夹具存在，TOC 解析尚未实现。
+/// EPUB3 的导航文档（NAV），供 [`crate::toc::parse_nav`] 与集成测试复用。
 pub(crate) const NAV: &str = r##"<?xml version="1.0" encoding="UTF-8"?>
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
 <head><title>目录</title></head>
