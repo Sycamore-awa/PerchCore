@@ -1,0 +1,30 @@
+[package]
+name = "perch-jobs"
+description = "导入阶段②③的实际执行：精修（元数据/目录/字数）与建索引（正文抽取 + 章节映射）"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+perch-model.workspace = true
+perch-epub.workspace = true
+perch-txt.workspace = true
+perch-index.workspace = true
+perch-pipeline.workspace = true
+serde.workspace = true
+# PathStore 要把产物写成 JSON（state / refinement / text）
+serde_json.workspace = true
+# PathStore 从目录名（UUID）解析 BookId
+uuid.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+# 仅测试用：在内存里造 EPUB 夹具
+zip.workspace = true
+# 仅测试用：造 GBK 等非 UTF-8 的 TXT 夹具
+encoding_rs.workspace = true
+
+[lints]
+workspace = true

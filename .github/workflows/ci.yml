@@ -1,18 +1,4 @@
-# 持续集成
-#
-# 两条流水线（对应 docs/05-云端构建与验证方案.md）：
-#   core-linux：Rust 核心的快速回路（本机也能跑，CI 只做兜底）
-#   ios-macos ：在云端 macOS 上编译 iOS —— 这是"没有 Mac 也能验证 iOS"的唯一途径
-#
-# 设计原则：
-# 1. **只依赖官方 action**（checkout / cache）。其余工具用 curl / git / cargo 自己装，
-#    避免引入我无法验证的第三方 action 版本。
-# 2. **Linux job 先跑**，用 needs 卡住昂贵的 macOS job（分钟数是真金白银）。
-# 3. macOS job 第一步是**诊断**：把 Xcode 版本、可用模拟器打出来。
-#    模拟器设备名会随 Xcode 版本变化，所以设备名靠动态发现而不是猜。
-# 4. Linux job 通过 `just ci` 执行，与本地命令**完全一致**，避免两边漂移。
-
-name: CI
+name: Core CI
 
 on:
   push:
@@ -20,8 +6,9 @@ on:
   pull_request:
   workflow_dispatch:
 
-# 同一分支只保留最新一次运行：新推送会取消排队中的旧 run。
-# 这既能省 macOS 分钟数，也能把"卡在 queued 的僵尸 run"顺手清掉。
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -30,516 +17,106 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  # ------------------------------------------------------------------
-  # 快速回路：Rust 核心（约 1~3 分钟）
-  # ------------------------------------------------------------------
-  core-linux:
-    name: Rust 核心（格式 / clippy / 测试 / iOS 交叉编译）
-    runs-on: ubuntu-latest
+  core-host:
+    name: Rust (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
       - uses: actions/checkout@v4
-
-      # rustup：core/rust-toolchain.toml 已声明 channel、组件与 3 个 iOS target，
-      # 所以装好 rustup 之后工具链与 target 会自动补齐，无需在此重复声明。
-      - name: 安装 rustup
-        run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
-            | sh -s -- -y --profile minimal --default-toolchain none
-          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
-
-      - name: 缓存 cargo
-        uses: actions/cache@v4
+      - name: Rust stable
+        run: rustup toolchain install stable --profile minimal --component rustfmt --component clippy
+      - uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            core/target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('core/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-cargo-
-
-      # 装 just 以复用 justfile：本地跑什么、CI 就跑什么。
-      # 必须在 core/ 下跑：rustup 是用 --default-toolchain none 装的，
-      # 工具链来自 core/rust-toolchain.toml；在仓库根目录没有它 → 无工具链可用。
-      - name: 安装 just
-        working-directory: core
+            target
+          key: ${{ runner.os }}-core-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
+          restore-keys: ${{ runner.os }}-core-
+      - name: Format
+        run: cargo fmt --all --check
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+      - name: Tests
+        run: cargo test --workspace --all-features --locked
+      - name: Minimal Rust client
+        run: cargo run -p perch-core --example inspect -- examples/data/sample.txt 文字
+      - name: Shared and static FFI library
+        run: cargo build -p perch-ffi --release --locked
+      - name: C client
+        if: runner.os != 'Windows'
+        shell: bash
         run: |
-          if ! command -v just >/dev/null 2>&1; then
-            cargo install just --locked
-          fi
-          just --version
+          extension=so
+          if [ "$RUNNER_OS" = "macOS" ]; then extension=dylib; fi
+          cmake -S examples/c -B target/c-example -DPERCH_CORE_LIBRARY="${PWD}/target/release/libperch_ffi.${extension}"
+          cmake --build target/c-example
+          ctest --test-dir target/c-example --output-on-failure
 
-      - name: 显示工具链与 target
-        working-directory: core
-        run: |
-          rustc --version
-          cargo --version
-          rustup target list --installed
-
-      # iOS 符号导出检查需要 llvm-nm（GNU nm 不认识 Mach-O 归档）。
-      # 建一个稳定路径的符号链接，避免下游依赖 /usr/lib/llvm-*/bin 这种易变位置。
-      - name: 确保 llvm-nm 可用
-        run: |
-          if ! command -v llvm-nm >/dev/null 2>&1; then
-            found=$(ls -1 /usr/lib/llvm-*/bin/llvm-nm 2>/dev/null | tail -1 || true)
-            if [ -z "$found" ]; then
-              sudo apt-get update -qq
-              sudo apt-get install -y llvm
-              found=$(ls -1 /usr/lib/llvm-*/bin/llvm-nm 2>/dev/null | tail -1 || true)
-            fi
-            if [ -z "$found" ]; then
-              echo "::error::安装后仍找不到 llvm-nm"
-              exit 1
-            fi
-            sudo ln -sf "$found" /usr/local/bin/llvm-nm
-          fi
-          llvm-nm --version | head -1
-
-      # 平台差异检查：macOS 自带的是 bash 3.2，**不是** UTF-8 感知的 —— 变量名后面
-      # 紧跟中文/全角字符时，它会把多字节字符算进变量名，报 "unbound variable"。
-      # 2026-10-18 的 CI 就是这样挂的（一个 echo 里变量后面直接跟了全角括号），
-      # 而 Linux 的 bash 5 完全不会暴露这个问题 —— 所以要在 Linux 侧挡住。
-      # 修法：写成 ${var}，或加个空格/逗号隔开。
-      - name: 检查 CI 脚本里变量名是否相邻非 ASCII（bash 3.2 陷阱）
-        run: |
-          pattern='\$[A-Za-z_][A-Za-z0-9_]*(?=[^\x00-\x7F])'
-          if grep -nP "$pattern" .github/workflows/ci.yml; then
-            echo "::error::上面这些变量名后面紧跟非 ASCII 字符：macOS 的 bash 3.2 会把它们算进变量名（本项目已在 CI 上挂过一次）。请写成 \${var} 或加空格隔开。"
-            exit 1
-          fi
-          echo "✓ 没有「变量名相邻非 ASCII」的写法"
-
-      # 拆成独立步骤（而不是单个 `just ci`）：
-      # 这样某一步失败时，**失败的步骤名本身就说明了是哪一环**，
-      # 不需要登录看日志也能定位。命令与本地 justfile 完全一致。
-      - name: 格式检查
-        run: just fmt-check
-      - name: clippy
-        run: just lint
-      - name: Rust 测试
-        run: just test
-      - name: iOS 交叉编译检查
-        run: just check-ios
-      - name: iOS 模拟器交叉编译检查
-        run: just check-ios-sim
-      - name: iOS 符号导出断言
-        env:
-          PERCH_REQUIRE_LLVM_NM: '1'
-        run: just ios-symbols
-
-  # ------------------------------------------------------------------
-  # FFI 端到端：用 Dart 真的加载 .so 调用 Rust（约 2~3 分钟）
-  #
-  # 这是唯一能自动验证"Rust ↔ Dart 契约"的手段，且不需要任何设备或 Mac。
-  # 与 core-linux 并行跑（都是免费的 Linux 分钟）。
-  # ------------------------------------------------------------------
-  ffi-smoke:
-    name: FFI 端到端（Dart ↔ Rust C ABI）
+  msrv:
+    name: Minimum Rust 1.88
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+      - name: Install minimum toolchain
+        run: rustup toolchain install 1.88.0 --profile minimal
+      - name: Check all targets and features
+        run: cargo +1.88.0 check --workspace --all-targets --all-features --locked
 
-      - name: 安装 rustup
-        run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
-            | sh -s -- -y --profile minimal --default-toolchain none
-          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
-
-      # 用 Dart 官方 tarball，不引入第三方 action
-      - name: 安装 Dart SDK
-        run: |
-          curl -sSL -o /tmp/dart.zip \
-            https://storage.googleapis.com/dart-archive/channels/stable/release/latest/sdk/dartsdk-linux-x64-release.zip
-          unzip -q /tmp/dart.zip -d "$HOME"
-          echo "$HOME/dart-sdk/bin" >> "$GITHUB_PATH"
-          "$HOME/dart-sdk/bin/dart" --version
-
-      - name: 编译核心动态库
-        working-directory: core
-        run: cargo build -p perch-ffi --release
-
-      - name: 运行端到端冒烟
-        working-directory: dart/perch_core
-        run: |
-          dart pub get
-          dart run tool/ffi_smoke.dart ../../core/target/release/libperch_ffi.so
-
-  # ------------------------------------------------------------------
-  # 慢回路：云端 macOS 编译 iOS（约 10~20 分钟）
-  # ------------------------------------------------------------------
-  ios-macos:
-    name: iOS 编译（macOS runner + Xcode）
-    needs: core-linux
-    # 标签必须用官方列表里的名字：macOS 26 的 arm64 镜像标签就是 `macos-26`
-    # （或 `macos-latest` / `macos-26-xlarge`）。**没有** `macos-26-arm64` 这个标签——
-    # 写成本来不存在的标签，job 会永远 queued 而不会报错，非常难察觉。
-    runs-on: macos-26
-    # 显式超时：默认上限是 6 小时，而"模拟器卡住"这类故障会让 job 一直挂着烧额度。
-    # 正常一轮约 12~18 分钟（含模拟器冒烟）。
-    timeout-minutes: 45
+  ios-cross:
+    name: iOS Rust cross-check
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
-
-      # 诊断先跑：设备名随 Xcode 版本变化，靠这里打印出来而不是靠猜。
-      - name: 诊断环境
+      - name: Rust and targets
         run: |
-          echo "===== Xcode ====="
-          xcodebuild -version
-          echo "===== 可用 SDK ====="
-          xcodebuild -showsdks | grep -i ios || true
-          echo "===== 可用模拟器（前 40 行）====="
-          xcrun simctl list devices available | head -40
-          echo "===== CocoaPods ====="
-          pod --version || echo "未安装 CocoaPods"
-
-      # Rust 工具链：flutter build 期间，podspec 的 script_phase 会调用 cargo。
-      # core/rust-toolchain.toml 已声明 3 个 iOS target，rustup 会自动补齐。
-      - name: 安装 rustup（供 podspec 的构建阶段调用 cargo）
-        run: |
-          # ⚠️ 必须装**真实工具链**。之前写的是 --default-toolchain none，
-          # 于是 ~/.cargo/bin/cargo 只是个 rustup 代理，`command -v cargo` 能过，
-          # 但真正执行时报 "no default toolchain configured"。
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
-            | sh -s -- -y --profile minimal --default-toolchain stable
-          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
-
-      - name: 确认 cargo 真的可用
-        run: |
-          export PATH="$HOME/.cargo/bin:$PATH"
-          cargo --version
-          rustc --version
-          rustup toolchain list
-          # podspec 的构建阶段会 cargo rustc --target aarch64-apple-ios-sim，
-          # 没有对应 target 的 std 就编不过
-          rustup target add aarch64-apple-ios aarch64-apple-ios-sim
-          rustup target list --installed
-
-      - name: 安装 Flutter
-        run: |
-          # 用 git 拉 stable 分支，避免依赖第三方 action
-          if [ ! -d "$HOME/flutter" ]; then
-            git clone --depth 1 --branch stable https://github.com/flutter/flutter.git "$HOME/flutter"
-          fi
-          echo "$HOME/flutter/bin" >> "$GITHUB_PATH"
-          "$HOME/flutter/bin/flutter" --version
-
-      - name: 缓存 Flutter 与 pub
-        uses: actions/cache@v4
+          rustup toolchain install stable --profile minimal
+          rustup target add aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios
+      - uses: actions/cache@v4
         with:
           path: |
-            ~/.pub-cache
-            ~/flutter/bin/cache
-          key: ${{ runner.os }}-flutter-${{ hashFiles('app/pubspec.lock') }}
-          restore-keys: ${{ runner.os }}-flutter-
-
-      - name: 安装依赖
-        working-directory: app
+            ~/.cargo/registry
+            target
+          key: ${{ runner.os }}-ios-core-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
+          restore-keys: ${{ runner.os }}-ios-core-
+      - name: Cross-check
         run: |
-          flutter pub get
-
-      # Dart 静态分析：不需要设备，先把明显的编译错误挡掉。
-      # 用 `dart analyze` 而不是 `flutter analyze`：后者在本项目的中文路径下会崩
-      # （见 docs/03 的"环境怪癖"），而 dart analyze 正常，两者检查内容一致。
-      - name: Dart 静态分析
-        working-directory: app
-        run: dart analyze
-
-      # 产品逻辑单测：纯 Dart VM，不需要设备。覆盖进度存储与恢复的完整往返
-      - name: Flutter 单元测试
-        working-directory: app
-        run: flutter test
-
-      # 关键的编译验证：模拟器构建**不需要签名**，因此 CI 里可以跑
-      # 这条通过就说明：Flutter + flutter_readium（含其 Swift/Kotlin 原生部分）能编进 iOS App
-      - name: 编译 iOS（模拟器）
-        working-directory: app
+          cargo check --workspace --all-features --locked --target aarch64-apple-ios
+          cargo check --workspace --all-features --locked --target aarch64-apple-ios-sim
+          cargo check --workspace --all-features --locked --target x86_64-apple-ios
+      - name: Static library
+        run: cargo rustc -p perch-ffi --release --locked --target aarch64-apple-ios --crate-type staticlib
+      - name: Exported ABI symbols
         run: |
-          set -uo pipefail
-          # 全量输出先落盘。旧版 `| tail -200` 把构建日志截到只剩 29 行，
-          # 连「podspec 的脚本阶段到底跑没跑」都无从判断（踩坑记录见 docs/10 §6.2）。
-          # 模拟器构建不涉及签名，因此 CI 里可跑。
-          if ! flutter build ios --simulator > /tmp/ios_build.log 2>&1; then
-            echo "==== 构建失败：最后 200 行 ===="
-            tail -200 /tmp/ios_build.log
-            exit 1
-          fi
-          echo "==== 构建成功（$(wc -l < /tmp/ios_build.log | tr -d ' ') 行日志）===="
-          echo "---- 与 Rust 静态库相关的行 ----"
-          grep -nE 'Build Rust core|build_rust|libperch_ffi|PhaseScriptExecution' /tmp/ios_build.log \
-            || echo "（没有任何一行提到 Rust 构建阶段）"
-          echo "---- 错误与警告 ----"
-          grep -nE '(^|[^a-z])error:|warning: ' /tmp/ios_build.log || echo "（无）"
-          echo "---- 结尾 20 行 ----"
-          tail -20 /tmp/ios_build.log
+          sudo apt-get update -qq
+          sudo apt-get install -y llvm
+          python3 tools/check_ios_symbols.py target/aarch64-apple-ios/release/libperch_ffi.a
 
-      # 不论构建成败都执行：把「静态库到底在哪、链接参数到底是什么」查清楚
-      - name: 诊断 Rust 静态库与链接参数
-        if: always()
+  dart-ffi:
+    name: Dart C ABI
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rust
+        run: rustup toolchain install stable --profile minimal
+      - name: Dart SDK
         run: |
-          set -uo pipefail
-          echo "======== 诊断：Rust 静态库与链接参数 ========"
-          echo "---- ① 仓库里所有 libperch_ffi.a ----"
-          find . -name 'libperch_ffi.a' -not -path './core/target/*' 2>/dev/null || true
-          echo "---- ② 整个 app/build/ios 下的 .a ----"
-          find app/build/ios -name '*.a' 2>/dev/null || true
-          echo "---- ③ cargo / rustc ----"
-          export PATH="$HOME/.cargo/bin:$PATH"
-          cargo --version 2>&1 || true
-          rustc --version 2>&1 || true
-          echo "---- ④ App 侧 xcconfig 的 OTHER_LDFLAGS ----"
-          for xc in "app/ios/Pods/Target Support Files/Pods-Runner"/*.xcconfig; do
-            [ -f "$xc" ] || continue
-            echo "文件: $xc"
-            grep -n 'OTHER_LDFLAGS' "$xc" || echo "  （无 OTHER_LDFLAGS）"
-          done
-          echo "---- ⑤ Pods-Runner 是否引用本插件 ----"
-          grep -n 'perch_core_ffi' "app/ios/Podfile.lock" 2>/dev/null || echo "（Podfile.lock 里没有 perch_core_ffi）"
-
-      # 关键断言：`-force_load` 是否真的把 Rust 符号链进了最终二进制。
-      # 编译通过 ≠ 符号在里面 —— 没有 -force_load 时链接器会把没人引用的
-      # 静态库内容当死代码丢掉，而 App 依然"编译成功"，直到运行时
-      # DynamicLibrary.process() 才报符号找不到。
-      - name: 断言 Rust 符号已链入 App 二进制
+          curl -fSL -o /tmp/dart.zip https://storage.googleapis.com/dart-archive/channels/stable/release/latest/sdk/dartsdk-linux-x64-release.zip
+          unzip -q /tmp/dart.zip -d "$HOME"
+          echo "$HOME/dart-sdk/bin" >> "$GITHUB_PATH"
+      - name: FFI library
+        run: cargo build -p perch-ffi --release --locked
+      - name: Binding and real ABI smoke
+        working-directory: bindings/dart/perch_core
         run: |
-          set -uo pipefail
-          # ⚠️ 本步骤禁止「消费端提前退出」的管道（grep -q / head / sed q）：
-          # 生产者会收 SIGPIPE，在 pipefail + bash -e 下整步静默失败，
-          # **一行诊断都打不出来**。这个坑已经踩了 4 次（docs/10 §6.2）。
-          bundle="app/build/ios/iphonesimulator/Runner.app"
-          if [ ! -d "$bundle" ]; then
-            echo "::error::没有 $bundle"
-            ls -la app/build/ios/ 2>/dev/null || true
-            exit 1
-          fi
-
-          echo "======== 符号断言诊断 ========"
-          echo "---- Runner.app ----"
-          ls -la "$bundle"
-          echo "---- Runner.app/Frameworks ----"
-          ls -la "$bundle/Frameworks" 2>/dev/null || echo "（无 Frameworks 目录）"
-
-          # 逐个检查 bundle 里的**所有** Mach-O。Runner 未必是承载链接产物的那个文件：
-          # Flutter 新的模拟器构建里还有一个 __preview.dylib。
-          found_call=""
-          found_free=""
-          while IFS= read -r f; do
-            kind=$(file -b "$f" 2>/dev/null || true)
-            case "$kind" in
-              *Mach-O*) ;;
-              *) continue ;;
-            esac
-            syms=$(nm "$f" 2>&1 || true)
-            n=$(wc -l <<<"$syms" | tr -d ' ')
-            echo "── $f  （nm 输出 $n 行）"
-            if grep -qi 'perch' <<<"$syms"; then
-              echo "   ★ 含 perch 符号："
-              grep -i 'perch' <<<"$syms"
-            fi
-            if grep -q '_perch_call' <<<"$syms"; then found_call="$f"; fi
-            if grep -q '_perch_string_free' <<<"$syms"; then found_free="$f"; fi
-          done < <(find "$bundle" -type f)
-
-          echo "---- 结论 ----"
-          echo "_perch_call        -> ${found_call:-（未找到）}"
-          echo "_perch_string_free -> ${found_free:-（未找到）}"
-
-          if [ -n "$found_call" ] && [ -n "$found_free" ]; then
-            # 运行时要的是「进程内某个已加载镜像导出该符号」，
-            # 而不是「必须在 Runner 这个文件里」—— 查整个 bundle 才是对的断言。
-            echo "======== 断言通过：符号在 ${found_call} 里 ========"
-            exit 0
-          fi
-
-          echo "======== 失败原因排查 ========"
-          echo "---- ① 静态库位置与符号 ----"
-          find app -name 'libperch_ffi.a' -print 2>/dev/null > /tmp/libs.txt || true
-          if [ -s /tmp/libs.txt ]; then
-            while IFS= read -r lib; do
-              echo "库: $lib"
-              nm "$lib" 2>&1 | grep -E ' _perch_(call|string_free)$' || echo "  （库里也没有！）"
-            done < /tmp/libs.txt
-          else
-            echo "  （找不到任何 libperch_ffi.a）"
-          fi
-          echo "---- ② 主二进制的动态依赖 ----"
-          otool -L "$bundle/Runner" 2>/dev/null || true
-          echo "---- ③ __preview.dylib 的动态依赖 ----"
-          otool -L "$bundle/__preview.dylib" 2>/dev/null || true
-          exit 1
-
-      # 从「能编译」升级到「能跑」（docs/12 的 Step 1b）。
-      #
-      # 为什么必须做：`nm` 断言只证明「符号在 bundle 里」，不证明
-      # 「运行时 DynamicLibrary.process() 解析得到」——后者要进程真的跑起来。
-      # 所以这里把 App 装进模拟器启动，断言启动自检的那行日志
-      # （`[perch-selfcheck] ok core=<版本>`，见 app/lib/core_self_check.dart），
-      # 并把首页截图回传成 artifact：没有 Mac 时这是唯一能「看见」界面的手段。
-      #
-      # 设备名随 Xcode 版本变化，所以设备靠 `simctl list` 动态发现，不写死。
-      - name: 模拟器冒烟（启动 App + 断言自检日志 + 截图）
-        run: |
-          # 注意：GitHub 默认给 `run` 加的是 `bash -e`（不含 pipefail），这里显式补上。
-          # 本步骤**禁止**任何「消费端提前退出」的管道（grep -q / head 读管道）：
-          # 生产者会收 SIGPIPE，在 pipefail 下让整步静默失败（docs/10 §6.2，同类坑已 4 次）。
-          # 需要 grep 时一律读**文件**或 here-string，不用管道。
-          set -uo pipefail
-
-          # 自己实现超时包装：macOS **没有** GNU `timeout`（它是 coreutils 的东西），
-          # GitHub runner 上有没有装 coreutils 不确定 —— 不猜，自己写一个。
-          # 返回 124 表示超时（与 GNU timeout 一致）。
-          # ⚠️ 变量必须 local：这个函数被放在轮询循环里调用，而 bash 的函数变量
-          # 默认是**全局**的 —— 第一版把外层循环的 timed_out 覆盖成函数内部的计数，
-          # 导致外层 `while` 的计数永远涨不上去（无限循环）。harness 抓到的就是这个。
-          # （`local` 在 macOS 的 bash 3.2 上同样可用。）
-          run_with_timeout() {
-            local limit=$1
-            local child
-            local ticks
-            shift
-            "$@" &
-            child=$!
-            ticks=0
-            while kill -0 "$child" 2>/dev/null; do
-              if [ "$ticks" -ge "$limit" ]; then
-                kill -9 "$child" 2>/dev/null || true
-                echo "（超时 ${limit}s，已杀掉）"
-                return 124
-              fi
-              sleep 1
-              ticks=$((ticks + 1))
-            done
-            wait "$child"
-          }
-
-          bundle="app/build/ios/iphonesimulator/Runner.app"
-          artifacts="ci-artifacts"
-          mkdir -p "$artifacts"
-
-          if [ ! -d "$bundle" ]; then
-            echo "::error::没有 ${bundle}，无法冒烟"
-            ls -la app/build/ios/ 2>/dev/null || true
-            exit 1
-          fi
-
-          # bundle id 从产物里读，不写死（改工程配置时这里不会悄悄失配）
-          bundle_id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$bundle/Info.plist" 2>/dev/null || true)
-          if [ -z "$bundle_id" ]; then
-            bundle_id="com.perch.perch"
-            echo "（读不到 CFBundleIdentifier，回退到 ${bundle_id}）"
-          fi
-          echo "App：$bundle"
-          echo "bundle id：$bundle_id"
-
-          echo "---- 挑选模拟器设备 ----"
-          devices=$(xcrun simctl list devices available || true)
-          booted_lines=$(sed -n 's/^ *iPhone[^(]*(\([0-9A-Fa-f-]\{36\}\)) (Booted).*$/\1/p' <<<"$devices")
-          udid=$(printf '%s\n' "$booted_lines" | sed -n '1p')
-          if [ -z "$udid" ]; then
-            any_lines=$(sed -n 's/^ *iPhone[^(]*(\([0-9A-Fa-f-]\{36\}\)).*$/\1/p' <<<"$devices")
-            udid=$(printf '%s\n' "$any_lines" | sed -n '1p')
-          fi
-          if [ -z "$udid" ]; then
-            echo "::error::没有可用的 iPhone 模拟器"
-            printf '%s\n' "$devices"
-            exit 1
-          fi
-          echo "选中设备：$udid"
-          printf '%s\n' "$devices" | grep -F "$udid" || true
-
-          echo "---- 启动模拟器（最多等 180 秒）----"
-          xcrun simctl boot "$udid" 2>/dev/null || true
-          if ! run_with_timeout 180 xcrun simctl bootstatus "$udid" -b; then
-            echo "::error::模拟器启动超时或失败"
-            exit 1
-          fi
-
-          echo "---- 安装 App ----"
-          if ! run_with_timeout 180 xcrun simctl install "$udid" "$bundle"; then
-            echo "::error::simctl install 失败"
-            exit 1
-          fi
-
-          # 日志通道：**Flutter 的 print/debugPrint 走 os_log，不走 stdout** ——
-          # 第一次实跑就是栽在这上面：自检日志明明出现了，却因为只查
-          # `--console-pty` 而误判失败（见 docs/12「第一次 CI 实跑」）。
-          #
-          # 所以断言主通道用 `log show` 轮询：每次都是新进程、直接读日志库，
-          # **不受 stdout 缓冲影响**（实时流重定向到文件时可能整块缓冲，120 秒内
-          # 都刷不出来 —— 不赌这个）。这条通道是第一次实跑验证过的。
-          console_log="$artifacts/app-console.log"
-          system_log="$artifacts/log-show.log"
-          : > "$console_log"
-          : > "$system_log"
-
-          echo "---- 启动 App ----"
-          xcrun simctl launch --terminate-running-process "$udid" "$bundle_id" > "$console_log" 2>&1 || true
-
-          echo "---- 等自检日志（最多 120 秒）----"
-          found=""
-          waited_s=0
-          while [ "$waited_s" -lt 120 ]; do
-            run_with_timeout 30 xcrun simctl spawn "$udid" log show --last 1m \
-              --style compact --predicate 'process == "Runner"' \
-              >> "$system_log" 2>/dev/null || true
-            if grep -q 'perch-selfcheck' "$system_log"; then
-              found="$system_log"
-              break
-            fi
-            sleep 6
-            waited_s=$((waited_s + 9))
-          done
-          echo "自检日志：$([ -n "$found" ] && echo 出现 || echo 未出现)（等了 ${waited_s}s）"
-
-          # 再等几秒让 Flutter 画出首帧，然后截图。截图失败不影响断言。
-          sleep 8
-          echo "---- 截图 ----"
-          run_with_timeout 60 xcrun simctl io "$udid" screenshot "$artifacts/home.png" 2>&1 \
-            || echo "（截图失败）"
-          ls -la "$artifacts" || true
-
-          echo "---- 系统日志（前 40 行）----"
-          sed -n '1,40p' "$system_log" || true
-          echo "---- 控制台日志（前 40 行）----"
-          sed -n '1,40p' "$console_log" || true
-
-          if [ -n "$found" ]; then
-            echo "======== 冒烟通过：App 在模拟器上启动，启动自检日志已出现 ========"
-            echo "命中通道：${found}"
-            grep 'perch-selfcheck' "$found" || true
-            echo "→ 这行日志同时证明：Rust 符号在运行时解析得到（DynamicLibrary.process 可用）"
-            xcrun simctl terminate "$udid" "$bundle_id" 2>/dev/null || true
-            exit 0
-          fi
-
-          echo "======== 失败：App 启动后没有出现 [perch-selfcheck] 日志 ========"
-          echo "---- ① 系统日志尾 200 行 ----"
-          tail -200 "$system_log" || true
-          echo "---- ② 控制台日志尾 100 行 ----"
-          tail -100 "$console_log" || true
-          echo "---- ③ 崩溃报告 ----"
-          ls -la "$HOME/Library/Logs/DiagnosticReports" 2>/dev/null || echo "（没有诊断报告目录）"
-          echo "---- ④ App 进程是否还在 ----"
-          xcrun simctl spawn "$udid" launchctl list 2>/dev/null | grep -F "$bundle_id" \
-            || echo "（App 进程不在运行，可能是启动即崩溃）"
-          echo "---- ⑤ 再看一眼全量系统日志（最近 3 分钟）----"
-          run_with_timeout 60 xcrun simctl spawn "$udid" log show --last 3m \
-            --predicate 'process == "Runner"' 2>/dev/null > "$artifacts/system-show.log" || true
-          grep 'perch-selfcheck' "$artifacts/system-show.log" || echo "（log show 里也没有）"
-          xcrun simctl terminate "$udid" "$bundle_id" 2>/dev/null || true
-          echo "::error::模拟器冒烟失败：没有出现 [perch-selfcheck] 日志（截图与日志见 artifact ios-simulator-smoke）"
-          exit 1
-
-      # 不论成败都回传：失败时那几张截图和日志才是最有用的（没有 Mac 时全靠它）。
-      - name: 回传模拟器冒烟产物（截图 + 日志）
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: ios-simulator-smoke
-          path: ci-artifacts/
-          if-no-files-found: warn
-          retention-days: 14
-
-      - name: 汇总
-        if: always()
-        run: |
-          echo "iOS 编译产物："
-          ls -la app/build/ios/iphonesimulator/ 2>/dev/null || echo "（无产物）"
+          dart pub get
+          dart analyze
+          dart run tool/ffi_smoke.dart ../../../target/release/libperch_ffi.so
+          dart run example/main.dart ../../../target/release/libperch_ffi.so ../../../examples/data/sample.txt

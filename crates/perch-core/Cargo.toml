@@ -1,0 +1,32 @@
+[package]
+name = "perch-core"
+description = "Portable ebook processing: EPUB/TXT/PDF structure, search, locators and import tasks"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+readme = "README.md"
+
+[features]
+default = []
+sync = ["dep:perch-sync"]
+pagecurl = ["dep:perch-pagecurl"]
+
+[dependencies]
+perch-model.workspace = true
+perch-epub.workspace = true
+perch-txt.workspace = true
+perch-index.workspace = true
+perch-import.workspace = true
+perch-pipeline.workspace = true
+perch-jobs.workspace = true
+perch-pdf.workspace = true
+perch-sync = { workspace = true, optional = true }
+perch-pagecurl = { workspace = true, optional = true }
+
+[dev-dependencies]
+serde_json.workspace = true
+
+[lints]
+workspace = true

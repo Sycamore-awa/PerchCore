@@ -1,0 +1,66 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/perch-core",
+    "crates/perch-model",
+    "crates/perch-epub",
+    "crates/perch-txt",
+    "crates/perch-pagecurl",
+    "crates/perch-index",
+    "crates/perch-sync",
+    "crates/perch-import",
+    "crates/perch-pipeline",
+    "crates/perch-pdf",
+    "crates/perch-jobs",
+    "crates/perch-ffi",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+license = "MIT"
+repository = "https://github.com/Sycamore-awa/PerchCore"
+homepage = "https://github.com/Sycamore-awa/PerchCore"
+
+[workspace.dependencies]
+perch-core = { path = "crates/perch-core", version = "0.1.0" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+uuid = { version = "1", features = ["v4", "serde"] }
+# 内部 crate 互相依赖
+perch-model = { path = "crates/perch-model", version = "0.1.0" }
+perch-epub = { path = "crates/perch-epub", version = "0.1.0" }
+perch-txt = { path = "crates/perch-txt", version = "0.1.0" }
+perch-index = { path = "crates/perch-index", version = "0.1.0" }
+perch-pagecurl = { path = "crates/perch-pagecurl", version = "0.1.0" }
+perch-sync = { path = "crates/perch-sync", version = "0.1.0" }
+perch-import = { path = "crates/perch-import", version = "0.1.0" }
+perch-pipeline = { path = "crates/perch-pipeline", version = "0.1.0" }
+perch-pdf = { path = "crates/perch-pdf", version = "0.1.0" }
+perch-jobs = { path = "crates/perch-jobs", version = "0.1.0" }
+# ZIP：只用纯 Rust 的 deflate（miniz_oxide），保证可为 iOS 交叉编译
+zip = { version = "9", default-features = false, features = ["deflate"] }
+# XML：纯 Rust，流式解析，适合较大的 OPF / NCX
+quick-xml = "0.42"
+# TXT：编码探测与解码（都是纯 Rust，满足"零 C 依赖"约束）
+chardetng = "1"
+encoding_rs = "0.8"
+# 文件指纹（纯 Rust，可为 iOS 交叉编译）
+sha2 = "0.10"
+
+# 核心库的硬性约束：
+# - 禁止 unsafe（核心是纯逻辑，且要能在 Linux 上为 iOS 交叉校验）
+# - 禁止 unwrap / expect / panic —— 所有可预期错误都必须走 Result，
+#   这是"崩溃率 < 0.1%"目标的第一道防线（见 docs/architecture.md）
+[workspace.lints.rust]
+unsafe_code = "forbid"
+unused_must_use = "deny"
+
+[workspace.lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+todo = "deny"
+unimplemented = "deny"
