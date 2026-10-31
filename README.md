@@ -75,6 +75,10 @@ examples/            最小 Rust、C、Dart 命令行示例
 docs/                架构、接口、存储、验证、性能与迁移记录
 ```
 
+## 后续目标与任务
+
+[开发路线与任务清单](docs/roadmap.md) 是后续工作的入口，列出阶段、任务依赖、交付物和验收条件。下一批按 **BASE-01 样本 → BASE-02 性能基线 → API-01 接口契约** 推进，再实施并发和大文件优化。新 ABI、默认资源限额、平台与发布范围实施前确认。
+
 ## 验证与性能
 
 ```sh
@@ -86,7 +90,7 @@ cargo build -p perch-ffi --release --locked
 
 已有低开销索引和文本切片设计，但尚未完成跨设备性能基线。当前 TXT 仍全量解码，部分 FFI 接口使用十六进制 JSON，全局句柄锁也限制并发；详见 [性能与限制](docs/performance.md)。
 
-文档：[架构](docs/architecture.md) · [C ABI](docs/ffi.md) · [存储契约](docs/storage.md) · [构建与验证](docs/build.md) · [状态与计划](docs/status.md) · [迁移说明](docs/migration.md)。
+文档：[架构](docs/architecture.md) · [C ABI](docs/ffi.md) · [存储契约](docs/storage.md) · [构建与验证](docs/build.md) · [目标与任务](docs/roadmap.md) · [状态与计划](docs/status.md) · [迁移说明](docs/migration.md)。
 
 ## 许可证
 

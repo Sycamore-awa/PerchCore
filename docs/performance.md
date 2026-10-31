@@ -33,6 +33,8 @@ cargo run -p perch-import --release --example bench_register
 
 ## 待建立的基线
 
+具体任务为 [BASE-01 / BASE-02](roadmap.md)；资源预算在测量后确认，并作为后续 CTX/TXT/IDX 任务的验收依据。
+
 分别测 EPUB/TXT/PDF 结构打开、正文抽取、建索引、查询、落盘/重开和并发读取；报告样本大小、编码、冷/热缓存、CPU、内存、工具链，以及 p50/p90/p99 和峰值内存。
 
 移动端延迟、功耗和吞吐需要实际设备。损坏 ZIP、极大章节、超长单行和索引损坏需要额外压力与模糊测试；本次提取不声称已完成这些验证。
