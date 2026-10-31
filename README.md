@@ -2,9 +2,9 @@
 
 [![Core CI](https://github.com/Sycamore-awa/PerchCore/actions/workflows/ci.yml/badge.svg)](https://github.com/Sycamore-awa/PerchCore/actions/workflows/ci.yml)
 
-**面向电子书软件的 Rust 核心：解析、文本定位、中文搜索索引和可恢复的导入任务。**
+**使用 Rust 开发的跨平台电子书核心 SDK：解析、文本定位、中文全文检索和可恢复的导入任务。**
 
-A portable Rust ebook processing core with a C ABI and Dart bindings.
+A cross-platform ebook processing SDK written in Rust, with a C ABI and Dart bindings.
 
 PerchCore 从 PerchReader 提取，保留既有核心实现与 Git 历史。当前版本为 **0.1.0**，接口仍在完善。它可嵌入不同技术栈的阅读器；排版、渲染、书库数据库和平台生命周期由使用方实现。
 
