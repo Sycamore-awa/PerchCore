@@ -1,5 +1,7 @@
 # PerchCore
 
+[![Core CI](https://github.com/Sycamore-awa/PerchCore/actions/workflows/ci.yml/badge.svg)](https://github.com/Sycamore-awa/PerchCore/actions/workflows/ci.yml)
+
 **面向电子书软件的 Rust 核心：解析、文本定位、中文搜索索引和可恢复的导入任务。**
 
 A portable Rust ebook processing core with a C ABI and Dart bindings.

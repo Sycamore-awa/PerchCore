@@ -36,3 +36,17 @@
 5. 建立可复现的性能样本、损坏输入测试和跨平台发布产物。
 
 PDF 渲染、分页排版、应用书库、选区 UI、云服务和 DRM 不属于此次独立核心的已有交付能力。
+
+## 远端 CI 验证
+
+[Core CI run 41193897127](https://github.com/Sycamore-awa/PerchCore/actions/runs/41193897127) 对代码提交 `f1a99b571abe1223b8bea3d0aa71e963519784e2` 的六个 job 全部通过：
+
+- Linux、macOS、Windows Rust 格式、Clippy、测试、最小客户端和 FFI 库构建。
+- Linux/macOS 的真实 C ABI 示例。
+- Rust 1.88.0 全 target/feature 编译检查。
+- iOS arm64 真机与两种模拟器 Rust target、静态库及公共符号。
+- Dart 静态分析、127 项真实 FFI 冒烟与最小 TXT worker 示例。
+
+首次 iOS 符号检查因 runner 的系统 LLVM 21 与当前 Rust LLVM 23 不匹配失败；已改用 Rust 工具链配套的 llvm-tools-preview，并补上错误诊断，重跑后通过。
+
+这证明独立核心和上述绑定/构建路径可运行，不包含 iOS App 链接、阅读渲染、真机性能或发布包验收。
