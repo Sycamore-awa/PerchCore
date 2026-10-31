@@ -1,6 +1,6 @@
 # 从 PerchReader 迁移
 
-2026-10-31 将项目重点转向通用电子书核心。现有 GitHub 仓库计划重命名为 PerchCore，继续使用原提交历史；不执行 history rewrite 或 force push。
+2026-10-31 将项目重点转向通用电子书核心。现有 GitHub 仓库已重命名为 PerchCore，继续使用原提交历史；不执行 history rewrite 或 force push。
 
 提取依据为 PerchReader 本地 HEAD `8e3327938334a345f979adbd4865790cba29a32c` 与当时未提交的核心/绑定改动。提取提交将一并保存这些当前实现，不会只提取旧 HEAD 的代码。
 

@@ -31,12 +31,13 @@ just dart-example
 
 ```sh
 rustup target add aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios
+rustup component add llvm-tools-preview
 just check-ios
 just check-ios-sim
 just ios-symbols
 ```
 
-Linux 可以检查 Rust target 并打包 iOS staticlib。用 cargo rustc 覆盖 crate-type 为 staticlib，避免同时链接 cdylib。符号检查需要 llvm-nm。
+Linux 可以检查 Rust target 并打包 iOS staticlib。用 cargo rustc 覆盖 crate-type 为 staticlib，避免同时链接 cdylib。符号检查优先使用 Rust 工具链配套的 llvm-nm，避免系统 LLVM 无法读取较新 Rust bitcode；也可通过 PERCH_NM_BIN 显式指定兼容版本。
 
 这些检查不包含 App 链接、Readium、真机签名或渲染。旧项目的模拟器验证记录不能当作新目录已验证。
 
