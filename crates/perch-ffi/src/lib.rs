@@ -42,6 +42,12 @@ use serde_json::{Value, json};
 
 /// 业务版本号，供 Dart 侧做兼容性断言。
 const CORE_VERSION: &str = env!("CARGO_PKG_VERSION");
+/// 现有 C 符号及所有权规则的 ABI 版本。
+const ABI_VERSION: u16 = 1;
+/// JSON 契约 major：破坏现有方法才升级。
+const API_MAJOR: u16 = 1;
+/// JSON 契约 minor：新增 `compatibility` 方法。
+const API_MINOR: u16 = 1;
 
 /// 同时最多允许打开多少本书的索引。
 ///
@@ -309,6 +315,28 @@ fn call(method: &str, args: &str) -> Result<Value, FfiError> {
 
     match method {
         "version" => Ok(json!({ "core": CORE_VERSION })),
+        "compatibility" => Ok(json!({
+            "core": CORE_VERSION,
+            "abi": ABI_VERSION,
+            "api": { "major": API_MAJOR, "minor": API_MINOR },
+            "locator": {
+                "read": [perch_model::LOCATOR_VERSION],
+                "write": perch_model::LOCATOR_VERSION,
+            },
+            "artifacts": {
+                "index": {
+                    "read": [perch_index::INDEX_FORMAT_VERSION],
+                    "write": perch_index::INDEX_FORMAT_VERSION,
+                },
+                "text": {
+                    "read": [
+                        perch_jobs::BOOK_TEXT_LEGACY_VERSION,
+                        perch_jobs::BOOK_TEXT_VERSION,
+                    ],
+                    "write": perch_jobs::BOOK_TEXT_VERSION,
+                },
+            },
+        })),
 
         // ---- 定位（perch-model）----
         "locator.validate" => {
@@ -379,12 +407,11 @@ fn call(method: &str, args: &str) -> Result<Value, FfiError> {
             let text_path = required_str(&args, "text_path")?;
             let index = perch_index::Index::load_from(index_path)
                 .map_err(|error| FfiError::new(error.code(), error.to_string()))?;
-            let text_json = std::fs::read_to_string(text_path).map_err(|error| {
+            let text_json = std::fs::read(text_path).map_err(|error| {
                 FfiError::new("BOOK_LOAD_IO", format!("读取搜索定位文本失败: {error}"))
             })?;
-            let text: perch_jobs::BookText = serde_json::from_str(&text_json).map_err(|error| {
-                FfiError::new("BOOK_TEXT_JSON", format!("搜索定位文本损坏: {error}"))
-            })?;
+            let text = perch_jobs::book_text_from_slice(&text_json)
+                .map_err(|error| FfiError::new(error.code(), error.to_string()))?;
             if index.text() != text.text {
                 return Err(FfiError::new(
                     "BOOK_INDEX_MISMATCH",
@@ -1299,6 +1326,18 @@ mod tests {
     }
 
     #[test]
+    fn compatibility_reports_independent_contract_versions() {
+        let value = call_ok("compatibility", "{}");
+        assert_eq!(value["core"], CORE_VERSION);
+        assert_eq!(value["abi"], ABI_VERSION);
+        assert_eq!(value["api"]["major"], API_MAJOR);
+        assert_eq!(value["api"]["minor"], API_MINOR);
+        assert_eq!(value["locator"]["read"], json!([1]));
+        assert_eq!(value["artifacts"]["index"]["read"], json!([1]));
+        assert_eq!(value["artifacts"]["text"]["read"], json!([0, 1]));
+    }
+
+    #[test]
     fn unknown_method_returns_error_object() {
         let value = dispatch("nope", "{}");
         assert_eq!(value["error"]["code"], "FFI_UNKNOWN_METHOD");
@@ -1316,6 +1355,13 @@ mod tests {
         let bad = json!({ "href": "", "locations": {} });
         let value = dispatch("locator.validate", &bad.to_string());
         assert_eq!(value["error"]["code"], "MODEL_EMPTY_FIELD");
+
+        let future = json!({
+            "href": "txt:",
+            "perch": { "v": 2, "format": "txt", "txtOffset": 0 }
+        });
+        let value = dispatch("locator.validate", &future.to_string());
+        assert_eq!(value["error"]["code"], "MODEL_UNSUPPORTED_VERSION");
     }
 
     #[test]
@@ -1670,7 +1716,7 @@ mod tests {
         let index_path = directory.join("index.bin");
         let text_path = directory.join("text.json");
         index.save_to(&index_path).unwrap();
-        std::fs::write(&text_path, serde_json::to_vec(&text).unwrap()).unwrap();
+        std::fs::write(&text_path, perch_jobs::book_text_to_vec(&text).unwrap()).unwrap();
 
         let loaded = call_ok(
             "book.load",
@@ -1687,6 +1733,33 @@ mod tests {
         );
         assert_eq!(found["hits"].as_array().unwrap().len(), 1);
         call_ok("book.close", &json!({ "handle": handle }).to_string());
+
+        std::fs::write(&text_path, serde_json::to_vec(&text).unwrap()).unwrap();
+        let loaded = call_ok(
+            "book.load",
+            &json!({
+                "index_path": index_path.to_string_lossy(),
+                "text_path": text_path.to_string_lossy(),
+            })
+            .to_string(),
+        );
+        call_ok(
+            "book.close",
+            &json!({ "handle": loaded["handle"] }).to_string(),
+        );
+
+        let mut future = serde_json::to_value(&text).unwrap();
+        future["version"] = json!(perch_jobs::BOOK_TEXT_VERSION + 1);
+        std::fs::write(&text_path, serde_json::to_vec(&future).unwrap()).unwrap();
+        let rejected = dispatch(
+            "book.load",
+            &json!({
+                "index_path": index_path.to_string_lossy(),
+                "text_path": text_path.to_string_lossy(),
+            })
+            .to_string(),
+        );
+        assert_eq!(rejected["error"]["code"], "BOOK_TEXT_UNSUPPORTED_VERSION");
 
         let mut mismatched = text;
         mismatched.text.push('x');

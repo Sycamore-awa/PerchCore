@@ -51,8 +51,8 @@ use crate::{Index, Stats};
 
 /// 文件魔数。
 const MAGIC: &[u8; 8] = b"PERCHIDX";
-/// 当前格式版本。
-const VERSION: u8 = 1;
+/// 当前索引落盘格式版本。
+pub const INDEX_FORMAT_VERSION: u8 = 1;
 
 /// 落盘/加载错误。
 #[derive(Debug, Error)]
@@ -105,7 +105,7 @@ impl Index {
         let mut out = Vec::with_capacity(self.text_len_hint());
 
         out.extend_from_slice(MAGIC);
-        out.push(VERSION);
+        out.push(INDEX_FORMAT_VERSION);
         out.extend_from_slice(&self.chunk_chars().to_le_bytes());
         out.extend_from_slice(&stats.chars.to_le_bytes());
 
@@ -148,7 +148,7 @@ impl Index {
             return Err(IndexIoError::BadMagic);
         }
         let version = cursor.u8()?;
-        if version != VERSION {
+        if version != INDEX_FORMAT_VERSION {
             return Err(IndexIoError::UnsupportedVersion(version));
         }
         let chunk_chars = cursor.u64()?;

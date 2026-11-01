@@ -27,6 +27,19 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Reproducible corpus
+        run: |
+          python tools/make_corpus.py --check
+          python -m unittest discover -s tools -p 'test_*.py'
+      - name: Offline API contracts
+        run: |
+          python -m pip install -r tools/requirements-api.txt
+          python tools/api_catalog.py --check
+          python tools/check_api.py
+          python -m unittest discover -s tools -p 'api_contract_tests.py'
       - name: Rust stable
         run: rustup toolchain install stable --profile minimal --component rustfmt --component clippy
       - uses: actions/cache@v4
@@ -47,6 +60,15 @@ jobs:
         run: cargo run -p perch-core --example inspect -- examples/data/sample.txt 文字
       - name: Shared and static FFI library
         run: cargo build -p perch-ffi --release --locked
+      - name: Benchmark correctness smoke
+        run: python tools/bench.py --samples utf8,epub2,pdf-outline --iterations 2 --warmups 1 --output target/base02/ci.json
+      - name: Benchmark smoke report
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-smoke-${{ runner.os }}
+          path: |
+            target/base02/ci.json
+            target/base02/ci.md
       - name: C client
         if: runner.os != 'Windows'
         shell: bash
@@ -56,6 +78,9 @@ jobs:
           cmake -S examples/c -B target/c-example -DPERCH_CORE_LIBRARY="${PWD}/target/release/libperch_ffi.${extension}"
           cmake --build target/c-example
           ctest --test-dir target/c-example --output-on-failure
+      - name: Persistent C contract replay
+        if: runner.os != 'Windows'
+        run: python tools/check_api.py --replay --clients c --skip-build
 
   msrv:
     name: Minimum Rust 1.88
@@ -103,6 +128,11 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: API validator dependency
+        run: python -m pip install -r tools/requirements-api.txt
       - name: Rust
         run: rustup toolchain install stable --profile minimal
       - name: Dart SDK
@@ -119,3 +149,16 @@ jobs:
           dart analyze
           dart run tool/ffi_smoke.dart ../../../target/release/libperch_ffi.so
           dart run example/main.dart ../../../target/release/libperch_ffi.so ../../../examples/data/sample.txt
+      - name: Complete C and Dart contract replay
+        run: |
+          python tools/check_api.py --replay --skip-build
+          python -m unittest discover -s tools -p 'api_contract_tests.py'
+      - name: Dart benchmark correctness smoke
+        run: python3 tools/bench.py --clients dart,dart-worker --samples utf8 --iterations 2 --warmups 1 --output target/base02/dart-ci.json
+      - name: Dart benchmark smoke report
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-smoke-dart
+          path: |
+            target/base02/dart-ci.json
+            target/base02/dart-ci.md

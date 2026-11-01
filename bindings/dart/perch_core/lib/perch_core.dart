@@ -142,6 +142,9 @@ class PerchCore {
   /// 核心版本。
   String version() => invoke('version')['core'] as String;
 
+  /// ABI、JSON API、Locator 与落盘产物的兼容能力。
+  Map<String, dynamic> compatibility() => invoke('compatibility');
+
   /// 校验一个 Locator；非法时抛异常。
   void validateLocator(Map<String, dynamic> locator) =>
       invoke('locator.validate', locator);

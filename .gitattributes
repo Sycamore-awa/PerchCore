@@ -1,0 +1,4 @@
+# The corpus hashes describe exact bytes, including BOMs and mixed line endings.
+examples/data/corpus/inputs/** -text
+examples/data/corpus/texts/** -text
+examples/data/corpus/manifest.json text eol=lf

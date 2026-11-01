@@ -342,6 +342,14 @@ impl Locator {
             return Err(ModelError::EmptyField { field: "href" });
         }
 
+        if self.perch.v != LOCATOR_VERSION {
+            return Err(ModelError::UnsupportedVersion {
+                kind: "locator.perch",
+                found: self.perch.v,
+                supported: LOCATOR_VERSION,
+            });
+        }
+
         check_progression("locations.progression", self.locations.progression)?;
         check_progression(
             "locations.totalProgression",
@@ -523,6 +531,15 @@ mod tests {
             loc.validate().unwrap_err().code(),
             "MODEL_INVALID_PROGRESSION"
         );
+    }
+
+    #[test]
+    fn rejects_unsupported_perch_version() {
+        let mut locator = Locator::new_txt(0, Some(0), Some(1));
+        locator.perch.v = LOCATOR_VERSION + 1;
+        let error = locator.validate().unwrap_err();
+        assert_eq!(error.code(), "MODEL_UNSUPPORTED_VERSION");
+        assert!(error.to_string().contains("v2"));
     }
 
     #[test]

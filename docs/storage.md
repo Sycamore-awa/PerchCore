@@ -35,6 +35,6 @@ PathStore 打开时扫描状态。损坏的单个状态文件不会导致整个�
 
 ## 索引兼容性
 
-索引读取会检查版本和内容有效性。未来格式升级应提供重建或迁移路径；当前不要依赖内部二进制结构。位置 JSON 的 perch 扩展名保持兼容，不随仓库重命名改变。
+索引读取会检查版本和内容有效性。`index.bin` 当前读写 v1；`text.json` 读 legacy v0 与 v1、只写 v1。未知版本分别返回 `INDEX_UNSUPPORTED_VERSION` / `BOOK_TEXT_UNSUPPORTED_VERSION`，与损坏文件区分。升级时 index/text 作为同一组从原书重建；当前不要依赖内部二进制结构。位置 JSON 的 perch 扩展名保持兼容，不随仓库重命名改变。详见 [版本与兼容策略](compatibility.md)。
 
 PDF 只提供结构分析，不进入 EPUB/TXT 的正文抽取与索引任务。书库不能将已解析 PDF 标成支持全文搜索。

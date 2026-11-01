@@ -114,6 +114,73 @@ pub struct BookText {
     pub truncated: bool,
 }
 
+/// 无显式 `version` 字段的历史 `text.json`。
+pub const BOOK_TEXT_LEGACY_VERSION: u32 = 0;
+/// 当前 `text.json` 写入版本。
+pub const BOOK_TEXT_VERSION: u32 = 1;
+
+/// `text.json` 读取错误，区分损坏与未来版本。
+#[derive(Debug, thiserror::Error)]
+pub enum BookTextIoError {
+    /// JSON 语法或字段形状损坏。
+    #[error("text.json 损坏: {0}")]
+    Json(#[from] serde_json::Error),
+    /// 当前读取器不支持该显式版本。
+    #[error("text.json 版本不支持: {0}")]
+    UnsupportedVersion(u32),
+}
+
+impl BookTextIoError {
+    /// 供 FFI 及调用方稳定分支的错误码。
+    #[must_use]
+    pub const fn code(&self) -> &'static str {
+        match self {
+            Self::Json(_) => "BOOK_TEXT_JSON",
+            Self::UnsupportedVersion(_) => "BOOK_TEXT_UNSUPPORTED_VERSION",
+        }
+    }
+}
+
+#[derive(Serialize)]
+struct StoredBookTextRef<'a> {
+    version: u32,
+    #[serde(flatten)]
+    text: &'a BookText,
+}
+
+#[derive(Deserialize)]
+struct StoredBookText {
+    #[serde(default)]
+    version: u32,
+    #[serde(flatten)]
+    text: BookText,
+}
+
+/// 按当前 v1 形状序列化 `text.json`，不改变公开 [`BookText`] 字段。
+///
+/// # Errors
+///
+/// 序列化失败时返回 [`serde_json::Error`]。
+pub fn book_text_to_vec(text: &BookText) -> Result<Vec<u8>, serde_json::Error> {
+    serde_json::to_vec(&StoredBookTextRef {
+        version: BOOK_TEXT_VERSION,
+        text,
+    })
+}
+
+/// 读取 legacy v0 或当前 v1 `text.json`。
+///
+/// # Errors
+///
+/// JSON 损坏与不支持版本分别返回不同稳定错误码。
+pub fn book_text_from_slice(bytes: &[u8]) -> Result<BookText, BookTextIoError> {
+    let stored: StoredBookText = serde_json::from_slice(bytes)?;
+    match stored.version {
+        BOOK_TEXT_LEGACY_VERSION | BOOK_TEXT_VERSION => Ok(stored.text),
+        other => Err(BookTextIoError::UnsupportedVersion(other)),
+    }
+}
+
 /// 旧 [`BookText`]（只有 EPUB）没有 `format` 字段时的缺省值。
 fn default_book_format() -> Format {
     Format::Epub
@@ -1166,13 +1233,21 @@ mod tests {
     #[test]
     fn book_text_serde_carries_format_and_defaults_old_json_to_epub() {
         let book = extract_txt("正文".as_bytes(), ExtractOptions::default()).unwrap();
-        let json = serde_json::to_string(&book).unwrap();
+        let json = String::from_utf8(book_text_to_vec(&book).unwrap()).unwrap();
+        assert!(json.contains("\"version\":1"), "json = {json}");
         assert!(json.contains("\"format\":\"txt\""), "json = {json}");
 
-        // 旧版本落盘的 BookText 没有 format 字段，反序列化时应按 EPUB 补齐
+        // 旧版本落盘的 BookText 没有 version/format，应按 v0 + EPUB 补齐。
         let old = r#"{"text":"正文","chapters":[],"truncated":false}"#;
-        let restored: BookText = serde_json::from_str(old).unwrap();
+        let restored = book_text_from_slice(old.as_bytes()).unwrap();
         assert_eq!(restored.format, Format::Epub);
+
+        let future =
+            r#"{"version":2,"format":"txt","text":"正文","chapters":[],"truncated":false}"#;
+        assert_eq!(
+            book_text_from_slice(future.as_bytes()).unwrap_err().code(),
+            "BOOK_TEXT_UNSUPPORTED_VERSION"
+        );
     }
     // ---------- 格式嗅探与统一入口 ----------
 

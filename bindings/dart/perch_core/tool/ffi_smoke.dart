@@ -62,6 +62,10 @@ Future<void> main(List<String> args) async {
   stdout.writeln('[1] 连通性');
   final version = core.version();
   checkTrue('version 返回非空', version.isNotEmpty, 'version=$version');
+  final compatibility = core.compatibility();
+  check('C ABI 版本', compatibility['abi'], 1);
+  check('JSON API major', (compatibility['api'] as Map)['major'], 1);
+  check('Locator 写入版本', (compatibility['locator'] as Map)['write'], 1);
 
   // ---- 2) 错误必须作为数据返回，不能崩 ----
   stdout.writeln('[2] 错误处理');

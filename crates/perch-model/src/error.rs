@@ -25,6 +25,14 @@ pub enum ModelError {
     #[error("矩形非法（数值须有限、宽高须为正、分量须在 0.0~1.0 之间）: {rect:?}")]
     InvalidRect { rect: [f32; 4] },
 
+    /// 带版本的模型扩展无法由当前核心解释。
+    #[error("模型版本不支持: {kind} v{found}（当前支持 v{supported}）")]
+    UnsupportedVersion {
+        kind: &'static str,
+        found: u8,
+        supported: u8,
+    },
+
     /// 标识符无法解析。
     #[error("标识符非法: {kind} = {value}")]
     InvalidId { kind: &'static str, value: String },
@@ -57,6 +65,7 @@ impl ModelError {
             Self::InvalidProgression { .. } => "MODEL_INVALID_PROGRESSION",
             Self::MissingAnchor { .. } => "MODEL_MISSING_ANCHOR",
             Self::InvalidRect { .. } => "MODEL_INVALID_RECT",
+            Self::UnsupportedVersion { .. } => "MODEL_UNSUPPORTED_VERSION",
             Self::InvalidId { .. } => "MODEL_INVALID_ID",
             Self::InvalidTransition { .. } => "MODEL_INVALID_TRANSITION",
             Self::InvalidRange => "MODEL_INVALID_RANGE",

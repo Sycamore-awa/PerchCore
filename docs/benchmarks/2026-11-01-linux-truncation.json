@@ -1,0 +1,443 @@
+{
+  "artifacts": {
+    "dart_binary": {
+      "path": "/home/sycamore/项目/PerchCore/target/base02/clean-target/base02/bench_dart",
+      "sha256": "2101cc7933062a8082009fcceba5f2349de5bf33124c70f4e007c9b9f13f5a91"
+    },
+    "library": {
+      "path": "/home/sycamore/项目/PerchCore/target/base02/clean-target/release/libperch_ffi.so",
+      "sha256": "0f7a22a7aa4f38edd53990e13a7bf0c59b3224778f897d9ab7f6010b375a4dca"
+    },
+    "rust_binary": {
+      "path": "/home/sycamore/项目/PerchCore/target/base02/clean-target/release/examples/bench_core",
+      "sha256": "5dc1982818961690ce1fb2d3d12c16cffd3507b88bf53baca6b87de0ab7e807e"
+    }
+  },
+  "builds": [],
+  "cases": [
+    {
+      "client": "rust",
+      "durations_ns": [
+        14229474,
+        14421444,
+        14255613
+      ],
+      "peak_rss": {
+        "bytes": 64032768,
+        "method": "/proc/self/status VmHWM",
+        "scope": "post-exec process: setup, warmups, operations and validation"
+      },
+      "process_elapsed_ns": 110414081,
+      "query": null,
+      "sample_id": "long-line",
+      "slice_start": null,
+      "stage": "extract",
+      "stats": {
+        "chapters": 1,
+        "chars": 5000000,
+        "truncated": true
+      },
+      "status": "ok",
+      "summary": {
+        "count": 3,
+        "max_ns": 14421444,
+        "mean_ns": 14302177,
+        "mib_per_second_at_p50": 806.7001904475029,
+        "min_ns": 14229474,
+        "operations_per_second_at_p50": 70.14780774421976,
+        "p50_ns": 14255613,
+        "p90_ns": 14421444,
+        "p99_ns": 14421444,
+        "percentile_method": "nearest_rank",
+        "work_bytes_per_iteration": 12058630
+      }
+    },
+    {
+      "client": "rust",
+      "durations_ns": [
+        104689285,
+        104679556,
+        104586462
+      ],
+      "peak_rss": {
+        "bytes": 62087168,
+        "method": "/proc/self/status VmHWM",
+        "scope": "post-exec process: setup, warmups, operations and validation"
+      },
+      "process_elapsed_ns": 486553929,
+      "query": null,
+      "sample_id": "long-line",
+      "slice_start": null,
+      "stage": "index",
+      "stats": {
+        "chars": 5000000,
+        "chunks": 1221,
+        "postings": 9768,
+        "tokens": 8,
+        "truncated": true
+      },
+      "status": "ok",
+      "summary": {
+        "count": 3,
+        "max_ns": 104689285,
+        "mean_ns": 104651767.66666667,
+        "mib_per_second_at_p50": null,
+        "min_ns": 104586462,
+        "operations_per_second_at_p50": 9.55296371337303,
+        "p50_ns": 104679556,
+        "p90_ns": 104689285,
+        "p99_ns": 104689285,
+        "percentile_method": "nearest_rank",
+        "work_bytes_per_iteration": null
+      }
+    },
+    {
+      "client": "rust",
+      "durations_ns": [
+        1162,
+        551,
+        130
+      ],
+      "peak_rss": {
+        "bytes": 62054400,
+        "method": "/proc/self/status VmHWM",
+        "scope": "post-exec process: setup, warmups, operations and validation"
+      },
+      "process_elapsed_ns": 170767833,
+      "query": "终点",
+      "sample_id": "long-line",
+      "slice_start": null,
+      "stage": "query.hit",
+      "stats": {
+        "hits": 0,
+        "truncated": true
+      },
+      "status": "ok",
+      "summary": {
+        "count": 3,
+        "max_ns": 1162,
+        "mean_ns": 614.3333333333334,
+        "mib_per_second_at_p50": null,
+        "min_ns": 130,
+        "operations_per_second_at_p50": 1814882.0326678767,
+        "p50_ns": 551,
+        "p90_ns": 1162,
+        "p99_ns": 1162,
+        "percentile_method": "nearest_rank",
+        "work_bytes_per_iteration": null
+      }
+    },
+    {
+      "client": "rust",
+      "durations_ns": [
+        145063629,
+        143987170,
+        146114169
+      ],
+      "peak_rss": {
+        "bytes": 91361280,
+        "method": "/proc/self/status VmHWM",
+        "scope": "post-exec process: setup, warmups, operations and validation"
+      },
+      "process_elapsed_ns": 677728251,
+      "query": null,
+      "sample_id": "long-line",
+      "slice_start": null,
+      "stage": "pipeline",
+      "stats": {
+        "chapters": 1,
+        "chars": 5000000,
+        "truncated": true
+      },
+      "status": "ok",
+      "summary": {
+        "count": 3,
+        "max_ns": 146114169,
+        "mean_ns": 145054989.33333334,
+        "mib_per_second_at_p50": 79.27559651803485,
+        "min_ns": 143987170,
+        "operations_per_second_at_p50": 6.893526701996405,
+        "p50_ns": 145063629,
+        "p90_ns": 146114169,
+        "p99_ns": 146114169,
+        "percentile_method": "nearest_rank",
+        "work_bytes_per_iteration": 12058630
+      }
+    },
+    {
+      "client": "ctypes",
+      "durations_ns": [
+        171058508,
+        170057711,
+        170442693
+      ],
+      "peak_rss": {
+        "bytes": 216391680,
+        "method": "/proc/self/status VmHWM",
+        "scope": "post-exec Python process: runtime, setup, warmups, operations, validation and cleanup"
+      },
+      "process_elapsed_ns": 748009430,
+      "query": null,
+      "request_durations_ns": [],
+      "sample_id": "long-line",
+      "slice_start": null,
+      "stage": "book.open",
+      "stats": {
+        "chars": 5000000,
+        "request_bytes": 24117319,
+        "response_bytes": 91,
+        "truncated": true
+      },
+      "status": "ok",
+      "summary": {
+        "count": 3,
+        "max_ns": 171058508,
+        "mean_ns": 170519637.33333334,
+        "mib_per_second_at_p50": 67.47139181874988,
+        "min_ns": 170057711,
+        "operations_per_second_at_p50": 5.867074630180832,
+        "p50_ns": 170442693,
+        "p90_ns": 171058508,
+        "p99_ns": 171058508,
+        "percentile_method": "nearest_rank",
+        "work_bytes_per_iteration": 12058630
+      }
+    },
+    {
+      "client": "ctypes",
+      "durations_ns": [
+        11281,
+        7173,
+        5861
+      ],
+      "peak_rss": {
+        "bytes": 206376960,
+        "method": "/proc/self/status VmHWM",
+        "scope": "post-exec Python process: runtime, setup, warmups, operations, validation and cleanup"
+      },
+      "process_elapsed_ns": 237183452,
+      "query": "终点",
+      "request_durations_ns": [],
+      "sample_id": "long-line",
+      "slice_start": null,
+      "stage": "book.search",
+      "stats": {
+        "hits": 0,
+        "request_bytes": 51,
+        "response_bytes": 11,
+        "result_limit": 20,
+        "searchable_chars": 5000000,
+        "truncated": true
+      },
+      "status": "ok",
+      "summary": {
+        "count": 3,
+        "max_ns": 11281,
+        "mean_ns": 8105,
+        "mib_per_second_at_p50": null,
+        "min_ns": 5861,
+        "operations_per_second_at_p50": 139411.68269901018,
+        "p50_ns": 7173,
+        "p90_ns": 11281,
+        "p99_ns": 11281,
+        "percentile_method": "nearest_rank",
+        "work_bytes_per_iteration": null
+      }
+    },
+    {
+      "client": "dart",
+      "durations_ns": [
+        422034546,
+        419424000,
+        421363537
+      ],
+      "peak_rss": {
+        "bytes": 258875392,
+        "method": "/proc/self/status VmHWM",
+        "scope": "post-exec Dart process: runtime, setup, warmups, operations, validation and cleanup"
+      },
+      "process_elapsed_ns": 1796947685,
+      "query": null,
+      "sample_id": "long-line",
+      "slice_start": null,
+      "stage": "book.open",
+      "stats": {
+        "chars": 5000000,
+        "truncated": true
+      },
+      "status": "ok",
+      "summary": {
+        "count": 3,
+        "max_ns": 422034546,
+        "mean_ns": 420940694.3333333,
+        "mib_per_second_at_p50": 27.292360900335566,
+        "min_ns": 419424000,
+        "operations_per_second_at_p50": 2.3732475930872967,
+        "p50_ns": 421363537,
+        "p90_ns": 422034546,
+        "p99_ns": 422034546,
+        "percentile_method": "nearest_rank",
+        "work_bytes_per_iteration": 12058630
+      }
+    },
+    {
+      "client": "dart",
+      "durations_ns": [
+        2745,
+        1583,
+        1472
+      ],
+      "peak_rss": {
+        "bytes": 258134016,
+        "method": "/proc/self/status VmHWM",
+        "scope": "post-exec Dart process: runtime, setup, warmups, operations, validation and cleanup"
+      },
+      "process_elapsed_ns": 529221925,
+      "query": "终点",
+      "sample_id": "long-line",
+      "slice_start": null,
+      "stage": "book.search",
+      "stats": {
+        "hits": 0,
+        "searchable_chars": 5000000,
+        "truncated": true
+      },
+      "status": "ok",
+      "summary": {
+        "count": 3,
+        "max_ns": 2745,
+        "mean_ns": 1933.3333333333333,
+        "mib_per_second_at_p50": null,
+        "min_ns": 1472,
+        "operations_per_second_at_p50": 631711.9393556538,
+        "p50_ns": 1583,
+        "p90_ns": 2745,
+        "p99_ns": 2745,
+        "percentile_method": "nearest_rank",
+        "work_bytes_per_iteration": null
+      }
+    }
+  ],
+  "corpus": {
+    "manifest_sha256": "acc2e820a37abcceaac29248f9da5c961c5863b7403e0d9068ee9368f6c9abe4",
+    "path": "/home/sycamore/项目/PerchCore/target/performance-corpus",
+    "profile": "performance",
+    "samples": [
+      {
+        "bom": false,
+        "bytes": 12058630,
+        "decoded": {
+          "chars": 5767170,
+          "path": "texts/long-line.decoded.txt",
+          "sha256": "4c555b36d42c7aa2da99faaebbf97e64b4e05caa658f877490b6025a505dc56d",
+          "utf8_bytes": 12058630
+        },
+        "encoding": "UTF-8",
+        "format": "txt",
+        "id": "long-line",
+        "indexed": {
+          "chars": 5767170,
+          "path": "texts/long-line.indexed.txt",
+          "sha256": "4c555b36d42c7aa2da99faaebbf97e64b4e05caa658f877490b6025a505dc56d",
+          "utf8_bytes": 12058630
+        },
+        "path": "inputs/long-line.txt",
+        "queries": [
+          {
+            "chunk_chars": 4096,
+            "query": "终点",
+            "ranges": [
+              [
+                5767168,
+                5767170
+              ]
+            ]
+          }
+        ],
+        "sha256": "4c555b36d42c7aa2da99faaebbf97e64b4e05caa658f877490b6025a505dc56d"
+      }
+    ],
+    "scale": 256
+  },
+  "created_at": "2026-11-01T03:17:12.359033+00:00",
+  "environment": {
+    "architecture": "x86_64",
+    "cargo": "cargo 1.99.0 (5f94df478 2026-08-27)",
+    "cgroup_memory_max": null,
+    "cpu": "AMD Ryzen 5 9500F 6-Core Processor",
+    "cpu_affinity": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11
+    ],
+    "cpu_governor": "performance",
+    "dart": "Dart SDK version: 3.13.5 (stable) (Tue Sep 29 01:00:52 2026 -0700) on \"linux_x64\"",
+    "git_commit": "f5fa808a209e5bbb179b1a533c831ed8cb3404d6",
+    "load_average": [
+      1.7890625,
+      1.5078125,
+      0.77880859375
+    ],
+    "load_average_after": [
+      1.80615234375,
+      1.51611328125,
+      0.78564453125
+    ],
+    "logical_cpus": 12,
+    "memory_bytes": 16378355712,
+    "nvme_model": "WD_BLACK SN7100 1TB",
+    "os": "Linux-7.3.1-1-cachyos-x86_64-with-glibc2.44",
+    "python": "3.14.8 (main, Oct 13 2026, 10:43:33) [GCC 16.2.1 20260810]",
+    "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)\nbinary: rustc\ncommit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4\ncommit-date: 2026-09-28\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.0\nLLVM version: 23.1.1",
+    "working_tree_dirty": true
+  },
+  "first_clean_build_elapsed_ns": null,
+  "first_clean_build_note": "not measured; incremental build timings are separate from operation timings",
+  "measurement": {
+    "artifact_filesystem": {
+      "device": "/dev/nvme0n1p2",
+      "mount": "/home",
+      "options": "rw,noatime,compress=zstd:1,ssd,discard=async,space_cache=v2,subvolid=257,subvol=/@home",
+      "path": "/home/sycamore/项目/PerchCore/target/base02/scratch",
+      "type": "btrfs"
+    },
+    "cache": "uncontrolled OS page cache; fixture verification, setup and warmups read input; no cold-cache measurement",
+    "chunk_chars": 4096,
+    "clock": "Rust Instant / Python perf_counter_ns / Dart Stopwatch",
+    "input_filesystem": {
+      "device": "/dev/nvme0n1p2",
+      "mount": "/home",
+      "options": "rw,noatime,compress=zstd:1,ssd,discard=async,space_cache=v2,subvolid=257,subvol=/@home",
+      "path": "/home/sycamore/项目/PerchCore/target/performance-corpus",
+      "type": "btrfs"
+    },
+    "iterations": 3,
+    "max_chars": 5000000,
+    "save_durability": "write + rename; no fsync, matching current SDK behavior",
+    "slice_chars": 800,
+    "timeout_seconds": 120,
+    "warmups": 1
+  },
+  "sources": {
+    "Cargo.lock": "c41584d9a5bd0c553759b0cd601982c73d0f8c2b5ec7d165c088c8c701b4a882",
+    "bindings/dart/perch_core/tool/bench_ffi.dart": "3857bbf9b6529c056402301bdd8f90ef15d79381a65d844ad6522fd3e0d6c138",
+    "crates/perch-core/examples/bench_core.rs": "53628f182a9debb3adf6844e2c81ae0da12579d8cb28c601639c76a6b9ed7f13",
+    "tools/bench.py": "68cd2e799adb05f3c9632dbaf5869e3b1ec67b78f1a36f7a00e048d1f71163b1"
+  },
+  "unavailable": {
+    "clean_first_build": "not measured",
+    "cold_cache": "system caches were not evicted",
+    "energy": "not measured",
+    "mobile_devices": "not measured"
+  },
+  "version": 1
+}

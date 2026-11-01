@@ -31,10 +31,10 @@ cargo run -p perch-import --release --example bench_register
 | 生命周期 | worker 异常退出不自动释放 Rust 遗留句柄 | 显式 session 销毁和恢复规则 |
 | 搜索定位 | 索引正文经过归一化，EPUB 为粗 Locator | 精确文本重锚、渲染器集成验证 |
 
-## 待建立的基线
+## 可复现本地基线
 
-具体任务为 [BASE-01 / BASE-02](roadmap.md)；资源预算在测量后确认，并作为后续 CTX/TXT/IDX 任务的验收依据。
+[BASE-01 可复现样本集](../examples/data/corpus/README.md) 与 [BASE-02 测量工具](benchmarks/README.md) 已完成。[2026-11-01 Linux 基线](benchmarks/2026-11-01-linux.md) 提供两套各 194 个案例的原始 JSON、全量表格、吞吐、RSS 和构建记录，覆盖登记、打开/解码、精修、抽取、建索引、查询、存储/重开、切片、管线与 C ABI/Dart 调用。资源预算仍需确认，并作为后续 CTX/TXT/IDX 任务的验收依据。
 
-分别测 EPUB/TXT/PDF 结构打开、正文抽取、建索引、查询、落盘/重开和并发读取；报告样本大小、编码、冷/热缓存、CPU、内存、工具链，以及 p50/p90/p99 和峰值内存。
+约 144 万字符的长行样本中，Rust 建索引 p50 为 30.633ms，Registered → Ready 管线为 36.734ms；Dart 全文 analyzeText 为 84.367ms，末尾 800 字 txt.slice 为 0.0070ms。UTF-8 样本的 1,024 命中查询 p50 为 36.116ms，表明摘要构造和先计算全部命中再限量的路径需要后续测量与优化。
 
-移动端延迟、功耗和吞吐需要实际设备。损坏 ZIP、极大章节、超长单行和索引损坏需要额外压力与模糊测试；本次提取不声称已完成这些验证。
+上述为预热/准备已访问、系统页缓存未控制的 Linux 宿主结果。RSS 包含各语言运行时、准备和校验；写入未做 fsync。64 倍主基线与 256 倍长行截断检查已记录，设备、冷缓存、deflate EPUB、复杂 PDF 和功耗仍未测量。损坏 ZIP、极大章节和索引损坏需要 ROBUST-01 的额外压力与模糊测试；本地结果不构成移动端性能承诺。

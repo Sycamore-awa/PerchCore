@@ -14,8 +14,10 @@
 
 from __future__ import annotations
 
+import io
 import sys
 import zipfile
+from collections.abc import Iterable
 from pathlib import Path
 
 CONTAINER = """<?xml version="1.0" encoding="UTF-8"?>
@@ -137,24 +139,32 @@ p { text-indent: 2em; margin: 0.6em 0; }
 """
 
 
-def build(destination: Path) -> None:
-    destination.parent.mkdir(parents=True, exist_ok=True)
+def epub_bytes(entries: Iterable[tuple[str, str | bytes]]) -> bytes:
+    """固定顺序、时间与权限；Stored 避免 zlib 版本影响样本校验值。"""
+    output = io.BytesIO()
+    with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_STORED) as archive:
+        # EPUB 要求 mimetype 为首个条目且不压缩。
+        for name, content in [("mimetype", "application/epub+zip"), *entries]:
+            entry = zipfile.ZipInfo(name, date_time=(2026, 10, 16, 0, 0, 0))
+            entry.create_system = 3
+            entry.external_attr = 0o100644 << 16
+            archive.writestr(entry, content)
+    return output.getvalue()
 
-    with zipfile.ZipFile(destination, "w", zipfile.ZIP_DEFLATED) as archive:
-        # 规范要求：mimetype 必须是第一个条目，且不得压缩（便于被嗅探识别）
-        archive.writestr(
-            zipfile.ZipInfo("mimetype", date_time=(2026, 10, 16, 0, 0, 0)),
-            "application/epub+zip",
-            compress_type=zipfile.ZIP_STORED,
-        )
-        archive.writestr("META-INF/container.xml", CONTAINER)
-        archive.writestr("OEBPS/content.opf", opf())
-        archive.writestr("OEBPS/nav.xhtml", nav_xhtml())
-        archive.writestr("OEBPS/styles/main.css", CSS)
-        for cid, title, paragraphs in CHAPTERS:
-            archive.writestr(
-                f"OEBPS/text/{cid}.xhtml", chapter_xhtml(title, paragraphs)
-            )
+
+def build(destination: Path) -> None:
+    entries = [
+        ("META-INF/container.xml", CONTAINER),
+        ("OEBPS/content.opf", opf()),
+        ("OEBPS/nav.xhtml", nav_xhtml()),
+        ("OEBPS/styles/main.css", CSS),
+    ]
+    entries.extend(
+        (f"OEBPS/text/{cid}.xhtml", chapter_xhtml(title, paragraphs))
+        for cid, title, paragraphs in CHAPTERS
+    )
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_bytes(epub_bytes(entries))
 
     size = destination.stat().st_size
     print(f"已生成 {destination}（{size} 字节，{len(CHAPTERS)} 章）")

@@ -55,6 +55,8 @@
 
 pub mod persist;
 
+pub use persist::INDEX_FORMAT_VERSION;
+
 use std::collections::HashMap;
 use std::ops::Range;
 

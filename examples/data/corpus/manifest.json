@@ -1,0 +1,1204 @@
+{
+  "character_unit": "Unicode scalar",
+  "generator": "tools/make_corpus.py",
+  "generator_version": 1,
+  "license": "MIT",
+  "profile": "correctness",
+  "samples": [
+    {
+      "bom": false,
+      "bytes": 1424,
+      "decoded": {
+        "chars": 768,
+        "path": "texts/utf8.decoded.txt",
+        "sha256": "5074add8cf846589d5c631a0fa2192773ba50671e60d94f825b9df8b89b9f6bd",
+        "utf8_bytes": 1424
+      },
+      "encoding": "UTF-8",
+      "format": "txt",
+      "id": "utf8",
+      "indexed": {
+        "chars": 703,
+        "path": "texts/utf8.indexed.txt",
+        "sha256": "fae2e59c8acbd77338f59fd27cbb4a85c6c10ce8bea883f7c6f005503d6bb742",
+        "utf8_bytes": 1359
+      },
+      "path": "inputs/utf8.txt",
+      "queries": [
+        {
+          "chunk_chars": 4096,
+          "query": "中文",
+          "ranges": [
+            [
+              0,
+              2
+            ],
+            [
+              44,
+              46
+            ],
+            [
+              88,
+              90
+            ],
+            [
+              132,
+              134
+            ],
+            [
+              176,
+              178
+            ],
+            [
+              220,
+              222
+            ],
+            [
+              264,
+              266
+            ],
+            [
+              308,
+              310
+            ],
+            [
+              352,
+              354
+            ],
+            [
+              396,
+              398
+            ],
+            [
+              440,
+              442
+            ],
+            [
+              484,
+              486
+            ],
+            [
+              528,
+              530
+            ],
+            [
+              572,
+              574
+            ],
+            [
+              616,
+              618
+            ],
+            [
+              660,
+              662
+            ]
+          ]
+        },
+        {
+          "chunk_chars": 4096,
+          "query": "English Phrase",
+          "ranges": [
+            [
+              15,
+              29
+            ],
+            [
+              59,
+              73
+            ],
+            [
+              103,
+              117
+            ],
+            [
+              147,
+              161
+            ],
+            [
+              191,
+              205
+            ],
+            [
+              235,
+              249
+            ],
+            [
+              279,
+              293
+            ],
+            [
+              323,
+              337
+            ],
+            [
+              367,
+              381
+            ],
+            [
+              411,
+              425
+            ],
+            [
+              455,
+              469
+            ],
+            [
+              499,
+              513
+            ],
+            [
+              543,
+              557
+            ],
+            [
+              587,
+              601
+            ],
+            [
+              631,
+              645
+            ],
+            [
+              675,
+              689
+            ]
+          ]
+        },
+        {
+          "chunk_chars": 4096,
+          "query": "海风 🦀🧭",
+          "ranges": [
+            [
+              3,
+              8
+            ],
+            [
+              47,
+              52
+            ],
+            [
+              91,
+              96
+            ],
+            [
+              135,
+              140
+            ],
+            [
+              179,
+              184
+            ],
+            [
+              223,
+              228
+            ],
+            [
+              267,
+              272
+            ],
+            [
+              311,
+              316
+            ],
+            [
+              355,
+              360
+            ],
+            [
+              399,
+              404
+            ],
+            [
+              443,
+              448
+            ],
+            [
+              487,
+              492
+            ],
+            [
+              531,
+              536
+            ],
+            [
+              575,
+              580
+            ],
+            [
+              619,
+              624
+            ],
+            [
+              663,
+              668
+            ]
+          ]
+        },
+        {
+          "chunk_chars": 4096,
+          "query": "🦀🧭",
+          "ranges": [],
+          "reason": "no_indexable_tokens"
+        }
+      ],
+      "sha256": "5074add8cf846589d5c631a0fa2192773ba50671e60d94f825b9df8b89b9f6bd"
+    },
+    {
+      "bom": true,
+      "bytes": 1427,
+      "decoded": {
+        "chars": 768,
+        "path": "texts/utf8-bom.decoded.txt",
+        "sha256": "5074add8cf846589d5c631a0fa2192773ba50671e60d94f825b9df8b89b9f6bd",
+        "utf8_bytes": 1424
+      },
+      "encoding": "UTF-8",
+      "format": "txt",
+      "id": "utf8-bom",
+      "indexed": {
+        "chars": 703,
+        "path": "texts/utf8-bom.indexed.txt",
+        "sha256": "fae2e59c8acbd77338f59fd27cbb4a85c6c10ce8bea883f7c6f005503d6bb742",
+        "utf8_bytes": 1359
+      },
+      "path": "inputs/utf8-bom.txt",
+      "queries": [
+        {
+          "chunk_chars": 4096,
+          "query": "中文",
+          "ranges": [
+            [
+              0,
+              2
+            ],
+            [
+              44,
+              46
+            ],
+            [
+              88,
+              90
+            ],
+            [
+              132,
+              134
+            ],
+            [
+              176,
+              178
+            ],
+            [
+              220,
+              222
+            ],
+            [
+              264,
+              266
+            ],
+            [
+              308,
+              310
+            ],
+            [
+              352,
+              354
+            ],
+            [
+              396,
+              398
+            ],
+            [
+              440,
+              442
+            ],
+            [
+              484,
+              486
+            ],
+            [
+              528,
+              530
+            ],
+            [
+              572,
+              574
+            ],
+            [
+              616,
+              618
+            ],
+            [
+              660,
+              662
+            ]
+          ]
+        },
+        {
+          "chunk_chars": 4096,
+          "query": "海风 🦀🧭",
+          "ranges": [
+            [
+              3,
+              8
+            ],
+            [
+              47,
+              52
+            ],
+            [
+              91,
+              96
+            ],
+            [
+              135,
+              140
+            ],
+            [
+              179,
+              184
+            ],
+            [
+              223,
+              228
+            ],
+            [
+              267,
+              272
+            ],
+            [
+              311,
+              316
+            ],
+            [
+              355,
+              360
+            ],
+            [
+              399,
+              404
+            ],
+            [
+              443,
+              448
+            ],
+            [
+              487,
+              492
+            ],
+            [
+              531,
+              536
+            ],
+            [
+              575,
+              580
+            ],
+            [
+              619,
+              624
+            ],
+            [
+              663,
+              668
+            ]
+          ]
+        },
+        {
+          "chunk_chars": 4096,
+          "query": "🦀🧭",
+          "ranges": [],
+          "reason": "no_indexable_tokens"
+        }
+      ],
+      "sha256": "ef61b4379be9c360256357ea8b6bc909c5ca6e8abb711754cd2e31e77e492fed"
+    },
+    {
+      "bom": false,
+      "bytes": 1056,
+      "decoded": {
+        "chars": 656,
+        "path": "texts/gbk.decoded.txt",
+        "sha256": "d6a576a66f2abeb86f252b5ec6290f1531f0a8e7e9c8634e9f48a2b9b9600b37",
+        "utf8_bytes": 1456
+      },
+      "encoding": "GBK",
+      "format": "txt",
+      "id": "gbk",
+      "indexed": {
+        "chars": 639,
+        "path": "texts/gbk.indexed.txt",
+        "sha256": "31aefb44a19b21e4995525ac9ec0786047ca7f3b2926ea2fe73cdd36afe3187f",
+        "utf8_bytes": 1439
+      },
+      "path": "inputs/gbk.txt",
+      "queries": [
+        {
+          "chunk_chars": 4096,
+          "query": "中文编码测试",
+          "ranges": [
+            [
+              0,
+              6
+            ],
+            [
+              40,
+              46
+            ],
+            [
+              80,
+              86
+            ],
+            [
+              120,
+              126
+            ],
+            [
+              160,
+              166
+            ],
+            [
+              200,
+              206
+            ],
+            [
+              240,
+              246
+            ],
+            [
+              280,
+              286
+            ],
+            [
+              320,
+              326
+            ],
+            [
+              360,
+              366
+            ],
+            [
+              400,
+              406
+            ],
+            [
+              440,
+              446
+            ],
+            [
+              480,
+              486
+            ],
+            [
+              520,
+              526
+            ],
+            [
+              560,
+              566
+            ],
+            [
+              600,
+              606
+            ]
+          ]
+        },
+        {
+          "chunk_chars": 4096,
+          "query": "English Phrase",
+          "ranges": [
+            [
+              24,
+              38
+            ],
+            [
+              64,
+              78
+            ],
+            [
+              104,
+              118
+            ],
+            [
+              144,
+              158
+            ],
+            [
+              184,
+              198
+            ],
+            [
+              224,
+              238
+            ],
+            [
+              264,
+              278
+            ],
+            [
+              304,
+              318
+            ],
+            [
+              344,
+              358
+            ],
+            [
+              384,
+              398
+            ],
+            [
+              424,
+              438
+            ],
+            [
+              464,
+              478
+            ],
+            [
+              504,
+              518
+            ],
+            [
+              544,
+              558
+            ],
+            [
+              584,
+              598
+            ],
+            [
+              624,
+              638
+            ]
+          ]
+        }
+      ],
+      "sha256": "6e9fcca77c747a0ddeb7023a609c5019cfb574fd7b815ca5cee48728c80994df"
+    },
+    {
+      "bom": false,
+      "bytes": 1120,
+      "decoded": {
+        "chars": 688,
+        "path": "texts/big5.decoded.txt",
+        "sha256": "e880a009d8fe33251ec5375f0ec968c38fb9d71fc90d263079788d94b0ed9537",
+        "utf8_bytes": 1552
+      },
+      "encoding": "Big5",
+      "format": "txt",
+      "id": "big5",
+      "indexed": {
+        "chars": 671,
+        "path": "texts/big5.indexed.txt",
+        "sha256": "90219e6697e54f9f0ec94e0aac4853d22d1f9bf2230ac49fe716d1962a4b1926",
+        "utf8_bytes": 1535
+      },
+      "path": "inputs/big5.txt",
+      "queries": [
+        {
+          "chunk_chars": 4096,
+          "query": "繁體中文編碼測試",
+          "ranges": [
+            [
+              0,
+              8
+            ],
+            [
+              42,
+              50
+            ],
+            [
+              84,
+              92
+            ],
+            [
+              126,
+              134
+            ],
+            [
+              168,
+              176
+            ],
+            [
+              210,
+              218
+            ],
+            [
+              252,
+              260
+            ],
+            [
+              294,
+              302
+            ],
+            [
+              336,
+              344
+            ],
+            [
+              378,
+              386
+            ],
+            [
+              420,
+              428
+            ],
+            [
+              462,
+              470
+            ],
+            [
+              504,
+              512
+            ],
+            [
+              546,
+              554
+            ],
+            [
+              588,
+              596
+            ],
+            [
+              630,
+              638
+            ]
+          ]
+        },
+        {
+          "chunk_chars": 4096,
+          "query": "English Phrase",
+          "ranges": [
+            [
+              26,
+              40
+            ],
+            [
+              68,
+              82
+            ],
+            [
+              110,
+              124
+            ],
+            [
+              152,
+              166
+            ],
+            [
+              194,
+              208
+            ],
+            [
+              236,
+              250
+            ],
+            [
+              278,
+              292
+            ],
+            [
+              320,
+              334
+            ],
+            [
+              362,
+              376
+            ],
+            [
+              404,
+              418
+            ],
+            [
+              446,
+              460
+            ],
+            [
+              488,
+              502
+            ],
+            [
+              530,
+              544
+            ],
+            [
+              572,
+              586
+            ],
+            [
+              614,
+              628
+            ],
+            [
+              656,
+              670
+            ]
+          ]
+        }
+      ],
+      "sha256": "814d4423f50391366475191c2c66b8319e050b6f40bdcf25f485bba941bdbdc6"
+    },
+    {
+      "bom": false,
+      "bytes": 12299,
+      "decoded": {
+        "chars": 4100,
+        "path": "texts/cross-shard.decoded.txt",
+        "sha256": "9c3c378a389f1be95a018db909d79ac5689b16e118651cb07cc6c3bac269ff87",
+        "utf8_bytes": 12299
+      },
+      "encoding": "UTF-8",
+      "format": "txt",
+      "id": "cross-shard",
+      "indexed": {
+        "chars": 4099,
+        "path": "texts/cross-shard.indexed.txt",
+        "sha256": "93a395fb9114168b6eb7463e86e0cac3ac6ddf0d8ebbf8b10d0d6455b6307ce3",
+        "utf8_bytes": 12298
+      },
+      "path": "inputs/cross-shard.txt",
+      "queries": [
+        {
+          "chunk_chars": 4096,
+          "query": "跨片检索",
+          "ranges": [
+            [
+              4094,
+              4098
+            ]
+          ]
+        },
+        {
+          "chunk_chars": 4096,
+          "query": "检索🧭",
+          "ranges": [
+            [
+              4096,
+              4099
+            ]
+          ]
+        }
+      ],
+      "sha256": "9c3c378a389f1be95a018db909d79ac5689b16e118651cb07cc6c3bac269ff87"
+    },
+    {
+      "bom": false,
+      "bytes": 47110,
+      "decoded": {
+        "chars": 22530,
+        "path": "texts/long-line.decoded.txt",
+        "sha256": "8462bba7216399804b587fa3e8a87c4466e1de57d86406fc36ac489af0cb37e9",
+        "utf8_bytes": 47110
+      },
+      "encoding": "UTF-8",
+      "format": "txt",
+      "id": "long-line",
+      "indexed": {
+        "chars": 22530,
+        "path": "texts/long-line.indexed.txt",
+        "sha256": "8462bba7216399804b587fa3e8a87c4466e1de57d86406fc36ac489af0cb37e9",
+        "utf8_bytes": 47110
+      },
+      "path": "inputs/long-line.txt",
+      "queries": [
+        {
+          "chunk_chars": 4096,
+          "query": "终点",
+          "ranges": [
+            [
+              22528,
+              22530
+            ]
+          ]
+        }
+      ],
+      "sha256": "8462bba7216399804b587fa3e8a87c4466e1de57d86406fc36ac489af0cb37e9"
+    },
+    {
+      "bytes": 4320,
+      "chapters": [
+        {
+          "end_char": 489,
+          "href": "/OEBPS/text/ch01.xhtml",
+          "start_char": 0
+        },
+        {
+          "end_char": 1171,
+          "href": "/OEBPS/text/ch02.xhtml",
+          "start_char": 489
+        }
+      ],
+      "encoding": "UTF-8",
+      "epub_version": "2.0",
+      "format": "epub",
+      "id": "epub2",
+      "indexed": {
+        "chars": 1171,
+        "path": "texts/epub2.indexed.txt",
+        "sha256": "ec18f9f87c2e3e9ef3eb8f8a56d1dce80907f261fdc546bc29f603ace261a332",
+        "utf8_bytes": 2061
+      },
+      "path": "inputs/epub2.epub",
+      "queries": [
+        {
+          "chunk_chars": 4096,
+          "query": "跨章节\n检索接续",
+          "ranges": [
+            [
+              485,
+              493
+            ]
+          ]
+        },
+        {
+          "chunk_chars": 4096,
+          "query": "English Phrase",
+          "ranges": [
+            [
+              494,
+              508
+            ],
+            [
+              515,
+              529
+            ],
+            [
+              536,
+              550
+            ],
+            [
+              557,
+              571
+            ],
+            [
+              578,
+              592
+            ],
+            [
+              599,
+              613
+            ],
+            [
+              620,
+              634
+            ],
+            [
+              641,
+              655
+            ],
+            [
+              662,
+              676
+            ],
+            [
+              683,
+              697
+            ],
+            [
+              704,
+              718
+            ],
+            [
+              725,
+              739
+            ],
+            [
+              746,
+              760
+            ],
+            [
+              767,
+              781
+            ],
+            [
+              788,
+              802
+            ],
+            [
+              809,
+              823
+            ],
+            [
+              830,
+              844
+            ],
+            [
+              851,
+              865
+            ],
+            [
+              872,
+              886
+            ],
+            [
+              893,
+              907
+            ],
+            [
+              914,
+              928
+            ],
+            [
+              935,
+              949
+            ],
+            [
+              956,
+              970
+            ],
+            [
+              977,
+              991
+            ],
+            [
+              998,
+              1012
+            ],
+            [
+              1019,
+              1033
+            ],
+            [
+              1040,
+              1054
+            ],
+            [
+              1061,
+              1075
+            ],
+            [
+              1082,
+              1096
+            ],
+            [
+              1103,
+              1117
+            ],
+            [
+              1124,
+              1138
+            ],
+            [
+              1145,
+              1159
+            ]
+          ]
+        }
+      ],
+      "sha256": "c7b139f8fd29ab5a485d9aff5b747e4c3b04840c1a0ed72de6270992aa4b4826",
+      "title": "PerchCore EPUB 2.0 样本",
+      "toc": [
+        "第一章",
+        "检索接续"
+      ]
+    },
+    {
+      "bytes": 4208,
+      "chapters": [
+        {
+          "end_char": 489,
+          "href": "/OEBPS/text/ch01.xhtml",
+          "start_char": 0
+        },
+        {
+          "end_char": 1171,
+          "href": "/OEBPS/text/ch02.xhtml",
+          "start_char": 489
+        }
+      ],
+      "encoding": "UTF-8",
+      "epub_version": "3.0",
+      "format": "epub",
+      "id": "epub3",
+      "indexed": {
+        "chars": 1171,
+        "path": "texts/epub3.indexed.txt",
+        "sha256": "ec18f9f87c2e3e9ef3eb8f8a56d1dce80907f261fdc546bc29f603ace261a332",
+        "utf8_bytes": 2061
+      },
+      "path": "inputs/epub3.epub",
+      "queries": [
+        {
+          "chunk_chars": 4096,
+          "query": "跨章节\n检索接续",
+          "ranges": [
+            [
+              485,
+              493
+            ]
+          ]
+        },
+        {
+          "chunk_chars": 4096,
+          "query": "English Phrase",
+          "ranges": [
+            [
+              494,
+              508
+            ],
+            [
+              515,
+              529
+            ],
+            [
+              536,
+              550
+            ],
+            [
+              557,
+              571
+            ],
+            [
+              578,
+              592
+            ],
+            [
+              599,
+              613
+            ],
+            [
+              620,
+              634
+            ],
+            [
+              641,
+              655
+            ],
+            [
+              662,
+              676
+            ],
+            [
+              683,
+              697
+            ],
+            [
+              704,
+              718
+            ],
+            [
+              725,
+              739
+            ],
+            [
+              746,
+              760
+            ],
+            [
+              767,
+              781
+            ],
+            [
+              788,
+              802
+            ],
+            [
+              809,
+              823
+            ],
+            [
+              830,
+              844
+            ],
+            [
+              851,
+              865
+            ],
+            [
+              872,
+              886
+            ],
+            [
+              893,
+              907
+            ],
+            [
+              914,
+              928
+            ],
+            [
+              935,
+              949
+            ],
+            [
+              956,
+              970
+            ],
+            [
+              977,
+              991
+            ],
+            [
+              998,
+              1012
+            ],
+            [
+              1019,
+              1033
+            ],
+            [
+              1040,
+              1054
+            ],
+            [
+              1061,
+              1075
+            ],
+            [
+              1082,
+              1096
+            ],
+            [
+              1103,
+              1117
+            ],
+            [
+              1124,
+              1138
+            ],
+            [
+              1145,
+              1159
+            ]
+          ]
+        }
+      ],
+      "sha256": "c01bfd503948a87c50e283a7f1e7c90af3b11f1dfbb3fdca4fcee7d08d273275",
+      "title": "PerchCore EPUB 3.0 样本",
+      "toc": [
+        "第一章",
+        "检索接续"
+      ]
+    },
+    {
+      "bytes": 1362,
+      "encoding": "PDF strings: UTF-16BE / ASCII",
+      "format": "pdf",
+      "id": "pdf-outline",
+      "outline": [
+        {
+          "children": [
+            {
+              "page_index": 1,
+              "title": "第一节 🧭"
+            }
+          ],
+          "page_index": 0,
+          "title": "第一章"
+        },
+        {
+          "page_index": 2,
+          "title": "第二章"
+        }
+      ],
+      "page_count": 3,
+      "path": "inputs/pdf-outline.pdf",
+      "sha256": "a9be1d9b079bc4e9d91b08a25cea64b400ee04edd5d06ce496afcee7296da6f7",
+      "text_chars": null,
+      "title": "PerchCore PDF 结构样本"
+    }
+  ],
+  "scale": 1,
+  "version": 1
+}

@@ -307,8 +307,9 @@ impl BookStore for PathStore {
         index
             .save_to(dir.join("index.bin"))
             .map_err(|error| format!("写 index.bin 失败: {error}"))?;
-        let bytes =
-            serde_json::to_vec(&text).map_err(|error| format!("序列化 text.json 失败: {error}"))?;
+        // 读取器可兼容 v0，但当前写入器永远产生 v1。
+        let bytes = crate::book_text_to_vec(&text)
+            .map_err(|error| format!("序列化 text.json 失败: {error}"))?;
         write_atomic(&dir.join("text.json"), &bytes)
     }
 }
@@ -486,7 +487,11 @@ mod tests {
 
         // text.json 能读回来，章节映射还在
         let text_bytes = std::fs::read(book_dir.join("text.json")).unwrap();
-        let restored_text: BookText = serde_json::from_slice(&text_bytes).unwrap();
+        assert!(
+            String::from_utf8_lossy(&text_bytes).contains("\"version\":1"),
+            "当前写入器必须产生 text v1"
+        );
+        let restored_text = crate::book_text_from_slice(&text_bytes).unwrap();
         assert_eq!(restored_text, text);
 
         std::fs::remove_dir_all(&dir).ok();

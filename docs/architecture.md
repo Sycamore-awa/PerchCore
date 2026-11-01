@@ -42,7 +42,7 @@ perch-core = { git = "https://github.com/Sycamore-awa/PerchCore.git", features =
 
 ## 定位与字符单位
 
-Locator 顶层字段与 Readium 对齐：`href`、`type`、`title`、`locations`、`text`。附加字段在 `perch` 内，并通过 `v` 标明版本；现有 JSON 键名保持不变。
+Locator 顶层字段与 Readium 对齐：`href`、`type`、`title`、`locations`、`text`。附加字段在 `perch` 内，并通过 `v` 标明版本；当前读写 v1，语义校验会拒绝未知版本。现有 JSON 键名保持不变。
 
 | 格式 | 定位信息 |
 |---|---|
