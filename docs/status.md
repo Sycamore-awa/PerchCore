@@ -1,5 +1,55 @@
 # 状态与计划
 
+## 2026-11-14：CTX-03 原生关闭排空
+
+`context.close` 现在为每个显式 context 跟踪已接受调用。关闭先从根注册表摘除 context，因此后续调用立即返回 `CONTEXT_BAD_HANDLE`；然后对所属 pipeline 设置停止信号，并等待全部在途租约归还后才返回释放计数。在途 step 会在下一安全检查点返回 `cancelled`，不再在 context 已报告关闭后继续运行。
+
+新并发回归人为持有 pipeline 执行锁，让 `pipeline.step` 先取得 context/对象租约后阻塞，再并发关闭：验证新请求已被拒绝时 close 仍未提前返回，解锁后 step 返回 cancelled，close 随后完成。这与既有协作取消、非阻塞活动快照、worker 异常回收和 context 创建竞态回收共同满足 CTX-03 验收。百分比不再作为当前阻塞项；真实 UI 提出需求后再定义可比较工作量。
+
+`just ci` 通过：Rust 507 passed / 1 ignored，Clippy `-D warnings`、格式、14 项 Python 工具测试、8 项 API 契约测试、36 方法/262 组当前样例及 v1.1-v1.4 冻结兼容均通过。持久 C/Dart 客户端各重放 262 次并一致，真实 Dart FFI smoke 181 项和阅读器宿主流程通过。
+
+## 2026-11-14：pipeline 非阻塞活动快照
+
+CTX-03 继续以不修改既有 `pipeline.status` 结果的方式推进。JSON API v1.5 新增 `pipeline.progress`；它只取独立活动锁，因此同步 `pipeline.step` 持有执行锁时，另一线程仍能立即读取当前 book、refine/index 阶段、粗粒度 checkpoint 和 `cancelRequested`。无在途任务时返回 `active:null`。
+
+Rust 执行器在文件读取、格式解析、精修、正文抽取、索引构建、产物保存和提交前更新快照。Dart `PipelineHandle.progress` 走与 cancel 相同的短生命周期控制 isolate，不排在忙碌 worker 后面。checkpoint 不伪装成百分比；不同书籍在解析与索引阶段的工作量差异很大，后续只在真实 UI 需要时再定义可比较的计数。
+
+验证已覆盖执行锁被持有时 progress 不阻塞、取消登记可见、step 返回后活动自动清空、连续 step 不互相误清快照、Rust checkpoint 顺序和 Dart 类型化解析。`just ci` 通过：Rust 506 passed / 1 ignored，Clippy `-D warnings`、格式、14 项 Python 工具测试和 8 项 API 契约测试均通过。当前契约为 36 方法/262 组请求响应；持久 C/Dart 客户端已各重放 262 次并一致，真实 Dart FFI smoke 181 项通过。后续原生 close 排空见上方 CTX-03 收口记录。
+
+## 2026-11-14：pipeline 协作取消第一切片
+
+真实 worker 模型确认了两个串行点：Dart isolate 在同步 `pipeline.step` 返回前不会处理后发消息，Rust pipeline 对象锁也会让并发 cancel 等待同一个 step。现将取消集合从执行 mutex 中拆出；`pipeline.cancel` 先登记信号且不等待执行锁，排队/耗尽任务可立即撤出，在途 refine/index 在文件读取、解析/抽取、索引构建和产物保存之间检查并返回显式 `cancelled`。已观察取消的任务不会提交 Indexing/Ready，落盘 refining/indexing 可按既有恢复规则重做。
+
+Dart `PipelineHandle.cancel` 通过短生命周期控制 isolate 调用同一原生 context，因此普通 worker 忙时取消仍可送达；普通请求继续串行。JSON API 升至 v1.5，v1.4 的三个 Schema 与 261 组请求/响应已冻结。新增 [协作取消说明](cancellation.md)，明确 `cancelled: true` 是请求登记、step outcome 才是最终竞态结果，以及单个解析/索引子操作暂不做逐字符抢占。
+
+验证已覆盖执行锁被人为占用时 cancel 立即返回、下一 step 观察信号、取消后不保存 refinement、控制 isolate 共享 context，以及排队任务撤出。`just ci` 通过：Rust 505 passed / 1 ignored，Clippy `-D warnings`、格式、14 项 Python 工具测试、35 方法/261 组当前 API 契约与 v1.1-v1.4 冻结兼容夹具均通过；持久 C/Dart AOT 客户端各重放 261 次并一致，Dart FFI smoke 177 项通过。
+
+worker 异常退出的后续切片也已落地：`PerchWorker` 跟踪 context，error/exit 观察到故障后用短生命周期 isolate 调用 `context.close`，`dispose` 与 `PerchServices.close` 会等待回收。context 创建现也由受跟踪的短生命周期 isolate 执行，不再依赖常驻 worker 将编号送回。真实 FFI 回归分别强制终止已打开 TXT 的 worker 和 context 尚在创建的 worker，验证在途请求失败而不悬挂、后续请求立即拒绝，且 context 及其句柄均从 Rust 注册表移除。
+
+该切片完成后已可在同步 step 期间查询子阶段；原生 close 排空后续见本文顶部。context 编号未送达的 worker 启动竞态也已收口。
+
+## 2026-11-14：大 TXT 搜索与峰值内存修复
+
+同级 `PerchReader` 的真实 worker/pipeline 冒烟暴露了索引查询瓶颈：1 MiB 样本的“文字” `limit: 20` 搜索耗时 4620.567ms，10 MiB 超过 60s 仍未完成。原因是 FFI 在 `Index::search` 展开全部命中后才 `take(limit)`；摘要生成还会对每条命中重复统计全文字符数。
+
+`perch-index` 现提供 `search_limited`，按偏移顺序扫描并在达到上限时立即返回；FFI 直接调用该入口。`char_count` 改为读取已知分片尾界，不再遍历正文。新回归覆盖限量结果的顺序、`limit: 0` 和 FFI 调用链。
+
+[Linux 大 TXT 报告](benchmarks/2026-11-14-linux-large-txt.md) 的最终 5 轮数据中，1 MiB 搜索 p50 为 3.583ms，10 MiB 为 7.704ms。10 MiB 源文 6,116,720 字符，按现有 5,000,000 字符上限明确截断；索引步骤 p50 112.212ms，恢复打开 13.048ms，书籍加载 12.069ms。这一切片不改变 `index.bin` 格式或搜索响应形状；大文件全量驻留与可观察进度仍属 TXT-01/IDX-01/CTX-03 的后续触发项，协作取消第一切片见上节。
+
+100 MiB 测量继续暴露出两份可避免的全文中间分配：合法 UTF-8 从读取字节复制成第二份 `String`，以及导入在截断到 5M 字符前先构造整本归一化正文/source-map。现在所有权路径直接接管合法 UTF-8 读取缓冲区，归一化和映射从一开始就限制为 `max_chars`，同时继续扫描剩余源文以保留完整解码元数据。100 MiB 整个 Dart 进程 max RSS 从修复前单轮 585,596,928 字节降到 5 轮 p50 428,941,312 字节（减少约 149.4 MiB / 26.7%），精修/索引 p50 为 79.153/177.830ms。
+
+最终三档搜索 p50 为 3.583/7.704/7.540ms。索引文件格式、source-map 结果和 JSON 契约不变；100 MiB `txt.open` 仍须全量驻留解码正文与行/字符索引，进一步降低常驻内存需要 TXT-01 的分块或窗口存储设计。
+
+`just ci` 通过：Rust 503 passed / 1 ignored，Clippy `-D warnings`、格式、14 项 Python 工具测试、35 方法/261 组当前 API 契约及冻结兼容夹具均通过。
+
+## 2026-11-14：真实阅读器导入与进度恢复
+
+同级 `PerchReader` Flutter 工作区已完成路线图要求的真实 App 接入，不再只停留在命令行宿主。Linux 应用现在可通过 GTK 文件选择器导入任意 TXT/EPUB，源文件直接进入既有路径精修、pipeline、重启恢复、落盘索引和搜索回源链路。
+
+宿主新增按 PerchCore 内容指纹分书保存的进度文件。TXT 记录 Unicode scalar 分页起点，EPUB 记录 spine href；重建 controller/worker 后会在搜索默认跳转前先恢复位置。损坏的进度 JSON 按无记录处理，不影响书籍打开。
+
+PerchReader 完整 `flutter test` 现为 14 passed，`dart analyze` 无问题，`flutter build linux --debug` 通过。测试使用真实 PerchCore `.so`，覆盖本地 TXT 路径导入、TXT/EPUB 位置跨 controller 恢复和损坏进度文件。当前 EPUB 位置粒度仍是章节，章内 WebKit 滚动位置未持久化。
+
 ## 2026-11-14：恢复产物故障矩阵
 
 在不引入 fuzz 框架或新恢复格式的前提下，补充了 ROBUST-01 的一个确定性小切片：对 Ready 书的 `refinement.json` 缺失/损坏、`index.bin` 缺失/损坏/未来版本、`text.json` 缺失/损坏/未来版本，以及 sourceMap 缺失/null/未来版本/结构损坏建立 12 组端到端回归。
@@ -91,13 +141,13 @@ Rust 回归覆盖 EPUB 2/3、UTF-8/BOM/GBK/Big5、跨分片、中文路径、来
 
 项目近期目标已从“面向多个未知调用方的通用发布级 SDK”调整为“服务真实电子书阅读器的稳定核心”。已完成的样本、基线、API/兼容契约、独立 context、EPUB/TXT、检索和导入恢复能力继续保留。
 
-当前主动队列只保留 IO-01、LOC-01 和 STORE-01，分别解决整本十六进制传输、检索命中回源文本和产物恢复；CTX-02 已完成。CTX-03、TXT/IDX/LIMIT 与损坏输入工作改为真实问题驱动；可配置配额、重锚契约扩展、Swift/Kotlin、完整平台矩阵与发布包明确暂缓。详细启动条件见 [阅读器核心路线](roadmap.md)。
+当时主动队列只保留 IO-01、LOC-01 和 STORE-01，分别解决整本十六进制传输、检索命中回源文本和产物恢复；CTX-02 已完成。CTX-03 后续已由真实 worker 取消与回收问题启动并在本文顶部收口；TXT/IDX/LIMIT 与损坏输入工作继续由真实问题驱动。可配置配额、重锚契约扩展、Swift/Kotlin、完整平台矩阵与发布包明确暂缓。详细启动条件见 [阅读器核心路线](roadmap.md)。
 
 ## 2026-11-13：CTX-02 对象级并发
 
 根注册表现在只管理 context、所有权、配额和短时句柄查找。book/TXT 以只读 `Arc` 租约共享，pipeline 以每对象 `Mutex` 串行；文件 I/O、解析、建索引、搜索、切片与 `pipeline.step` 不再持有根锁。释放大对象也移到根锁之外。
 
-close/use 的竞争语义已固定：`*.close` 和 `context.close` 立即摘除句柄，之后的新请求失败；close 前已取得租约的在途请求允许完成。close 不等待或取消在途任务，该能力仍属于按需启动的 CTX-03。
+当时的 close/use 竞争语义固定为：`*.close` 和 `context.close` 立即摘除句柄，之后的新请求失败；close 前已取得租约的在途请求允许完成。CTX-03 现已让 `context.close` 请求 pipeline 取消并等待 context 级在途调用；单对象 `*.close` 语义不变。
 
 新回归用人为占住 pipeline 对象锁来模拟可控长任务，证明另一 context 的 `txt.slice` 能在 pipeline 仍阻塞时完成，且 close 与在途 use 没有死锁、误关或悬挂。同机复跑 BASE-02 的 C ABI 双线程 `txt.slice.concurrent`，30 次的 p50 为 0.0347ms，对比 M1 报告 0.0377ms 无回退。本项不改 C/JSON/Dart 公开契约，下一项为 IO-01。
 
@@ -109,7 +159,7 @@ close/use 的竞争语义已固定：`*.close` 和 `context.close` 立即摘除�
 
 根注册表现在管理多个 ContextRegistry。对象句柄仍全进程递增且不复用，并记录所属 context；跨 context 误用返回 `CONTEXT_HANDLE_MISMATCH`。每个 context 独立拥有 8 book、4 TXT、1 pipeline 的固定配额；`context.close` 幂等并返回成组释放计数，销毁一个 context 不影响其他 context 或磁盘产物。
 
-Dart 增加 `PerchContext`、`invokeInContext` 和 worker 上下文调用；每个 `PerchServices` 实例自动创建并销毁自己的 context。新符号延迟解析，因此低层 legacy API 仍可加载旧动态库。异常 isolate 退出仍不能自动清理，留给 CTX-03。
+Dart 增加 `PerchContext`、`invokeInContext` 和 worker 上下文调用；每个 `PerchServices` 实例自动创建并销毁自己的 context。新符号延迟解析，因此低层 legacy API 仍可加载旧动态库。当时留给 CTX-03 的已知 context 异常清理已由上方后续切片完成。
 
 API v1.1 的 `urn:perchcore:api:v1:*` 三个 Schema 原样冻结；当前 v1.2 使用 `urn:perchcore:api:v1.2:*` 新快照。目录现为 33 个方法、161 步请求/响应样例，C 与 Dart AOT 持久客户端均覆盖显式 context、独立 pipeline 配额、跨 context 错误和成组销毁。
 
@@ -224,7 +274,7 @@ BASE-01 本身不包含性能测量，后续 BASE-02 的证据见上方记录。
 
 详细计划集中维护在 [开发路线与任务清单](roadmap.md)，以任务 ID 记录完成状态和依赖，避免在多份文档重复维护清单。
 
-BASE-01/02、API-01/02、CTX-01/02、IO-01、LOC-01 和 STORE-01 已完成。当前回到真实阅读器联调，其他任务按路线图的启动条件推进；重要方案实施前确认。
+BASE-01/02、API-01/02、CTX-01/02/03、IO-01、LOC-01 和 STORE-01 已完成。当前回到真实阅读器联调，其他任务按路线图的启动条件推进；重要方案实施前确认。
 
 各项状态以路线图和上方新增记录为准；下方 CI 记录描述独立核心提取时的验证。
 

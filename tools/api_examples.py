@@ -45,7 +45,7 @@ def fixtures():
     change = {"book": BOOK, "annotation": NOTE, "hlc": "1700000000001-0-tablet",
               "op": "set", "value": {"kind": "annotation", "annotation": annotation}}
     call("version", "version", expect={"core": "0.1.0"})
-    call("compatibility", "compatibility", expect={"abi": 1, "api": {"major": 1, "minor": 4},
+    call("compatibility", "compatibility", expect={"abi": 1, "api": {"major": 1, "minor": 5},
          "locator": {"read": [1], "write": 1},
          "artifacts": {"index": {"read": [1], "write": 1},
                        "text": {"read": [0, 1], "write": 1}}})
@@ -121,6 +121,7 @@ def fixtures():
     call("pipeline_enqueue", "pipeline.enqueue", {"handle": pipe, "book": BOOK, "path": variable("source"), "format": "txt"}, {"outcome": "queued", "stage": "refine"})
     call("pipeline_enqueue_duplicate", "pipeline.enqueue", {"handle": pipe, "book": BOOK, "path": variable("source"), "format": "txt"}, {"outcome": "alreadyPresent", "stage": None})
     call("pipeline_status", "pipeline.status", {"handle": pipe}, {"idle": False, "stats": {"pendingRefine": 1}})
+    call("pipeline_progress_idle", "pipeline.progress", {"handle": pipe}, {"active": None})
     call("pipeline_gate", "pipeline.step", {"handle": pipe, "now_ms": 1700000000000, "gate": {"allowAny": False}}, {"outcome": "idle"})
     call("pipeline_promote", "pipeline.promote", {"handle": pipe, "book": BOOK, "priority": "urgent"}, {"promoted": True, "priority": "urgent"})
     call("pipeline_refined", "pipeline.step", {"handle": pipe, "now_ms": 1700000000000}, {"outcome": "refined", "stage": "refine"})

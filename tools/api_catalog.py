@@ -16,7 +16,7 @@ from api_examples import fixtures
 ROOT = Path(__file__).resolve().parents[1]
 DRAFT = "https://json-schema.org/draft/2020-12/schema"
 API_MAJOR = 1
-API_MINOR = 4
+API_MINOR = 5
 SCHEMA_VERSION = f"v{API_MAJOR}.{API_MINOR}"
 COMMON_ID = f"urn:perchcore:api:{SCHEMA_VERSION}:common"
 REQUEST_ID = f"urn:perchcore:api:{SCHEMA_VERSION}:request"
@@ -159,6 +159,14 @@ COMMON = {
     "Gate": obj({"allowAny": field(BOOL, "false 时不开始任务。", True),
                  "allowHeavy": field(BOOL, "false 时不开始重任务。", True)}, []),
     "PipelineStats": obj({k: U64 for k in ("pendingRefine", "pendingIndex", "inFlight", "exhausted")}),
+    "PipelineActivity": obj({
+        "book": UUID,
+        "stage": STAGE,
+        "checkpoint": enum("preparing", "readingSource", "resolvingFormat", "refining",
+                           "savingRefinement", "extractingText", "buildingIndex", "savingIndex",
+                           "committing"),
+        "cancelRequested": BOOL,
+    }),
     "Recovered": obj({"book": UUID, "state": STATE, "attempts": U16,
                       "failedStage": nullable(STAGE),
                       "reason": field(nullable(STRING), "最近业务失败，或 STORE_* 前缀的产物恢复诊断。"),
@@ -174,6 +182,8 @@ COMMON = {
              "stage": {"const": "refine"}}),
         obj({"outcome": {"const": "indexed"}, "stats": ref("PipelineStats"), "book": UUID,
              "stage": {"const": "index"}, "chunks": U64, "tokens": U64}),
+        obj({"outcome": {"const": "cancelled"}, "stats": ref("PipelineStats"), "book": UUID,
+             "stage": STAGE}),
         obj({"outcome": {"const": "failed"}, "stats": ref("PipelineStats"), "book": UUID,
              "stage": STAGE, "reason": STRING, "attempts": U16, "retryAtMs": U64}),
         obj({"outcome": {"const": "exhausted"}, "stats": ref("PipelineStats"), "book": UUID,
@@ -223,6 +233,7 @@ method("context.open", "创建独立句柄与固定配额上下文", obj(), ref(
 method("context.close", "销毁上下文及其全部对象", obj({"context": CONTEXT}), ref("ContextClosed"),
        ["CONTEXT_LEGACY"], [
            "只能通过 perch_call 调用；重复关闭或未知 context 返回 closed:false 与全 0 released。",
+           "关闭先拒绝新调用，请求在途 pipeline 协作取消，并等待所有已接受调用退出后返回。",
            "关闭只释放内存对象，不删除源文件、pipeline 产物或状态文件。"])
 method("locator.validate", "校验 Locator 的结构与定位语义", ref("Locator"),
        obj({"valid": {"const": True}, "format": nullable(FORMAT)}),
@@ -326,10 +337,16 @@ method("pipeline.enqueue", "登记源路径并按落盘状态恢复入队",
 method("pipeline.step", "同步执行一个符合闸门的任务",
        obj({"handle": HANDLE, "now_ms": field(U64, "UTC Unix epoch 毫秒；省略取系统当前时间。"),
             "gate": ref("Gate")}, ["handle"]), ref("PipelineStep"), [*PIPE_HANDLE_ERRORS, "PIPELINE_IO"], [
-            "正常 outcome 有 idle/refined/indexed/failed/exhausted，字段依分支而异；failed 可退避重试，exhausted 须手动 retry。",
-            "存储 I/O 失败映射顶层 PIPELINE_IO，不返回 ioFailed 成功结果。执行期间持共享注册锁。"])
+            "正常 outcome 有 idle/refined/indexed/cancelled/failed/exhausted，字段依分支而异；failed 可退避重试，exhausted 须手动 retry。",
+            "cancelled 表示任务已在安全检查点退出；单次文件读取、解析或索引构建不会在内部抢占。",
+            "存储 I/O 失败映射顶层 PIPELINE_IO，不返回 ioFailed 成功结果。执行期间持 pipeline 对象执行锁，不占根 Registry 锁。"])
 method("pipeline.status", "读取队列概览", obj({"handle": HANDLE}),
        obj({"idle": BOOL, "stats": ref("PipelineStats")}), PIPE_HANDLE_ERRORS)
+method("pipeline.progress", "读取当前执行活动", obj({"handle": HANDLE}),
+       obj({"active": nullable(ref("PipelineActivity"))}), PIPE_HANDLE_ERRORS, [
+           "不取 pipeline 执行锁，可在同步 pipeline.step 运行期间由其他线程或 Dart 控制 isolate 轮询。",
+           "active:null 表示查询时没有已选中任务；checkpoint 是粗粒度子阶段，不是百分比或耗时估计。",
+           "cancelRequested 只表示取样时已登记取消，最终竞态仍以 pipeline.step 结果为准。"])
 method("pipeline.state", "读取单本书的落盘状态", obj({"handle": HANDLE, "book": UUID}),
        ref("PipelineState"), PIPE_HANDLE_ERRORS, ["unknown 仅返回 known:false；结果不含 updatedAtMs。"])
 method("pipeline.promote", "调整书籍优先级",
@@ -342,7 +359,7 @@ method("pipeline.retry", "手动复活已耗尽的任务",
        ["仅 exhausted 任务可复活；不存在或尚未耗尽时 retried:false。"])
 method("pipeline.cancel", "撤出书籍排队任务", obj({"handle": HANDLE, "book": UUID}),
        obj({"cancelled": {"const": True}}), PIPE_HANDLE_ERRORS,
-       ["不删除源文件/产物；不抢占或中断已在执行的同步 step。"])
+       ["不删除源文件/产物；排队任务立即撤出，在途 step 收到信号后于下一个安全检查点返回 cancelled。"])
 method("pipeline.close", "释放导入管线句柄", obj({"handle": HANDLE}), obj({"closed": BOOL}),
        ["HANDLE_WRONG_KIND", "CONTEXT_HANDLE_MISMATCH"], ["重复关闭或未知数字返回 closed:false；保留磁盘产物供重开恢复。"])
 method("pdf.analyze", "分析 PDF 页数、大纲与元数据",

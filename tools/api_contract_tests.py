@@ -17,7 +17,7 @@ class ContractTests(unittest.TestCase):
 
     def test_complete_catalog_and_examples(self):
         check_offline()
-        self.assertEqual(len(method_names()), 35)
+        self.assertEqual(len(method_names()), 36)
 
     def test_reject_bad_requests(self):
         cases = [

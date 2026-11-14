@@ -157,7 +157,7 @@ legacy `perch_call` 收到显式上下文拥有的对象句柄，同样返回 `C
 
 若上下文创建失败，服务启动失败且不保留 worker。若服务关闭中单个 `*.close` 失败，最终仍调用 `context.close` 兜底；close 保持幂等。
 
-异常 isolate 退出仍不能自动执行 Rust 清理，属于 CTX-03。显式上下文使宿主至少能保存 context 编号，并由仍存活的管理 isolate 调用 `context.close`。
+后续 CTX-03 小切片将 Dart worker 的 context 创建移到受跟踪的短生命周期 isolate。常驻 worker 异常退出时，创建结果仍会回到主 isolate；`dispose` 和 `PerchServices.close` 先等待在途创建，再通过清理 isolate 调用 `context.close`，成组回收该 context 及句柄。
 
 ## 兼容、版本与 Schema
 
@@ -222,4 +222,4 @@ CTX-02 在不改变本文 C ABI、JSON 方法和句柄归属契约的前提下�
 
 use/close 的线性化点是“是否已取得对象租约”：已取得租约的在途调用可继续完成；close 一旦摘除句柄，之后的查找立即返回原有 BAD_HANDLE 或 CONTEXT_BAD_HANDLE。因为在途调用持有 `Arc`，对象不会悬挂；close 本身也不需要等待对象锁。
 
-该语义刻意不包含取消：如果 close 必须等待、取消或报告在途任务，由 CTX-03 结合真实阅读器生命周期另行设计。可控阻塞回归和并发切片延迟对比见 [状态记录](status.md)。
+上述是单对象 `*.close` 的语义。CTX-03 后的 `context.close` 额外跟踪 context 级调用租约：先摘除 context，再请求其 pipeline 协作取消，并等待全部已接受调用退出。可控阻塞回归和并发切片延迟对比见 [状态记录](status.md)。

@@ -1,0 +1,1543 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:perchcore:api:v1.5:common",
+  "$defs": {
+    "Locator": {
+      "type": "object",
+      "properties": {
+        "href": {
+          "type": "string",
+          "description": "资源标识；validate 要求非空白，不要求路径实际存在。"
+        },
+        "type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "locations": {
+          "$ref": "urn:perchcore:api:v1.5:common#/$defs/Locations",
+          "description": "缺省为空对象。",
+          "default": {}
+        },
+        "text": {
+          "anyOf": [
+            {
+              "$ref": "urn:perchcore:api:v1.5:common#/$defs/TextContext"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "perch": {
+          "$ref": "urn:perchcore:api:v1.5:common#/$defs/Perch",
+          "description": "缺省为默认扩展；提供对象时 v 必填。"
+        }
+      },
+      "required": [
+        "href"
+      ],
+      "additionalProperties": false
+    },
+    "Locations": {
+      "type": "object",
+      "properties": {
+        "fragments": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "EPUB 片段锚点，默认空数组。",
+          "default": []
+        },
+        "progression": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "文档内进度；locator.validate 要求 [0,1]。"
+        },
+        "totalProgression": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "全书进度；locator.validate 要求 [0,1]。"
+        },
+        "position": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Readium position，未在此接口换算。"
+        },
+        "cssSelector": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "partialCfi": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    },
+    "Perch": {
+      "type": "object",
+      "properties": {
+        "v": {
+          "const": 1,
+          "description": "扩展结构 major；当前规范只支持 v1。"
+        },
+        "format": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "epub",
+                "txt",
+                "pdf"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "pdfPage": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "PDF 页号，0 基。"
+        },
+        "pdfRect": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "number"
+              },
+              "minItems": 4,
+              "maxItems": 4
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "[x,y,w,h] 归一化矩形；validate 检查分量 [0,1]、w/h>0，不检查 x+w/y+h。"
+        },
+        "txtOffset": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 18446744073709551615
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "解码原文的 Unicode scalar 偏移。"
+        },
+        "txtByteOffset": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 18446744073709551615
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "解码后 UTF-8 文本的字节偏移，不是源编码文件的字节偏移。"
+        },
+        "chapterIndex": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967295
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "章节索引，0 基。"
+        },
+        "chapterTitle": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "createdAt": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -9223372036854775808,
+              "maximum": 9223372036854775807
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "UTC Unix epoch 毫秒。"
+        },
+        "modifiedAt": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -9223372036854775808,
+              "maximum": 9223372036854775807
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "UTC Unix epoch 毫秒。"
+        },
+        "hlc": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "HLC 字符串，推荐非负十进制 wall-counter-device；解析和排序由 Rust 执行。"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "v"
+      ],
+      "additionalProperties": false
+    },
+    "TextContext": {
+      "type": "object",
+      "properties": {
+        "before": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "highlight": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "after": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    },
+    "Annotation": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "bookId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "highlight",
+            "underline",
+            "note",
+            "bookmark"
+          ]
+        },
+        "start": {
+          "$ref": "urn:perchcore:api:v1.5:common#/$defs/Locator"
+        },
+        "end": {
+          "anyOf": [
+            {
+              "$ref": "urn:perchcore:api:v1.5:common#/$defs/Locator"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "color": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "excerpt": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "createdAt": {
+          "type": "integer",
+          "minimum": -9223372036854775808,
+          "maximum": 9223372036854775807,
+          "description": "UTC Unix epoch 毫秒。"
+        },
+        "modifiedAt": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -9223372036854775808,
+              "maximum": 9223372036854775807
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "deleted": {
+          "type": "boolean",
+          "description": "缺省 false；输出 false 时省略。",
+          "default": false
+        },
+        "hlc": {
+          "anyOf": [
+            {
+              "type": "string",
+              "description": "HLC 字符串，推荐非负十进制 wall-counter-device；解析和排序由 Rust 执行。"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "bookId",
+        "kind",
+        "start",
+        "createdAt"
+      ],
+      "additionalProperties": false
+    },
+    "Change": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "book": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "annotation": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "hlc": {
+              "type": "string",
+              "description": "HLC 字符串，推荐非负十进制 wall-counter-device；解析和排序由 Rust 执行。"
+            },
+            "op": {
+              "const": "set"
+            },
+            "value": {
+              "$ref": "urn:perchcore:api:v1.5:common#/$defs/WireValue"
+            }
+          },
+          "required": [
+            "book",
+            "hlc",
+            "op",
+            "value"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "book": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "annotation": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "hlc": {
+              "type": "string",
+              "description": "HLC 字符串，推荐非负十进制 wall-counter-device；解析和排序由 Rust 执行。"
+            },
+            "op": {
+              "const": "tombstone"
+            }
+          },
+          "required": [
+            "book",
+            "hlc",
+            "op"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "WireValue": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "progress"
+            },
+            "locator": {
+              "$ref": "urn:perchcore:api:v1.5:common#/$defs/Locator"
+            }
+          },
+          "required": [
+            "kind",
+            "locator"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "annotation"
+            },
+            "annotation": {
+              "$ref": "urn:perchcore:api:v1.5:common#/$defs/Annotation"
+            }
+          },
+          "required": [
+            "kind",
+            "annotation"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "Error": {
+      "type": "object",
+      "properties": {
+        "error": {
+          "type": "object",
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "code",
+            "message"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "error"
+      ],
+      "additionalProperties": false
+    },
+    "ContextOpened": {
+      "type": "object",
+      "properties": {
+        "context": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18446744073709551615,
+          "description": "当前进程的显式 context；由 context.open 返回，0 为不可关闭的内部 legacy 值。"
+        }
+      },
+      "required": [
+        "context"
+      ],
+      "additionalProperties": false
+    },
+    "ContextReleased": {
+      "type": "object",
+      "properties": {
+        "books": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18446744073709551615
+        },
+        "txts": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18446744073709551615
+        },
+        "pipelines": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18446744073709551615
+        }
+      },
+      "required": [
+        "books",
+        "txts",
+        "pipelines"
+      ],
+      "additionalProperties": false
+    },
+    "ContextClosed": {
+      "type": "object",
+      "properties": {
+        "closed": {
+          "type": "boolean"
+        },
+        "released": {
+          "$ref": "urn:perchcore:api:v1.5:common#/$defs/ContextReleased"
+        }
+      },
+      "required": [
+        "closed",
+        "released"
+      ],
+      "additionalProperties": false
+    },
+    "BookOpened": {
+      "type": "object",
+      "properties": {
+        "handle": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18446744073709551615,
+          "description": "当前进程的对象句柄，0 有效；属于创建它的 context，不能当作指针、布尔值或持久化 ID。"
+        },
+        "charCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18446744073709551615
+        },
+        "chapterCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18446744073709551615
+        },
+        "chunks": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18446744073709551615
+        },
+        "tokens": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18446744073709551615
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "handle",
+        "charCount",
+        "chapterCount",
+        "chunks",
+        "tokens",
+        "truncated"
+      ],
+      "additionalProperties": false
+    },
+    "BookHit": {
+      "type": "object",
+      "properties": {
+        "charStart": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18446744073709551615
+        },
+        "charEnd": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18446744073709551615
+        },
+        "snippet": {
+          "type": "string"
+        },
+        "locator": {
+          "anyOf": [
+            {
+              "$ref": "urn:perchcore:api:v1.5:common#/$defs/Locator"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "charStart",
+        "charEnd",
+        "snippet",
+        "locator"
+      ],
+      "additionalProperties": false
+    },
+    "TxtSourceEndpoint": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "txt"
+        },
+        "charOffset": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18446744073709551615,
+          "description": "建立索引时原解码 TXT 的 Unicode scalar 边界（BOM 已移除）。"
+        },
+        "byteOffset": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18446744073709551615,
+          "description": "原解码 TXT 的 UTF-8 字节边界，不是 GBK/Big5 等源文件字节偏移。"
+        }
+      },
+      "required": [
+        "kind",
+        "charOffset",
+        "byteOffset"
+      ],
+      "additionalProperties": false
+    },
+    "EpubSourceEndpoint": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "epub"
+        },
+        "href": {
+          "type": "string",
+          "description": "该端点的容器绝对路径；跨章两端分别保留自己的 href。"
+        },
+        "nodePath": {
+          "type": "string",
+          "description": "无字符偏移的局部 CFI 风格文本节点路径，按 XhtmlIndex 规则编号。"
+        },
+        "scalarOffset": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18446744073709551615,
+          "description": "实体解码后文本节点内的 Unicode scalar 边界。"
+        },
+        "utf16Offset": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18446744073709551615,
+          "description": "同一节点内的 UTF-16 码元边界；emoji 等非 BMP 字符占 2。"
+        }
+      },
+      "required": [
+        "kind",
+        "href",
+        "nodePath",
+        "scalarOffset",
+        "utf16Offset"
+      ],
+      "additionalProperties": false
+    },
+    "SourceEndpoint": {
+      "oneOf": [
+        {
+          "$ref": "urn:perchcore:api:v1.5:common#/$defs/TxtSourceEndpoint"
+        },
+        {
+          "$ref": "urn:perchcore:api:v1.5:common#/$defs/EpubSourceEndpoint"
+        }
+      ]
+    },
+    "BookSourceLocation": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "start": {
+              "$ref": "urn:perchcore:api:v1.5:common#/$defs/TxtSourceEndpoint"
+            },
+            "end": {
+              "$ref": "urn:perchcore:api:v1.5:common#/$defs/TxtSourceEndpoint"
+            },
+            "containsSynthetic": {
+              "type": "boolean",
+              "description": "请求区间是否包含 EPUB 抽取时人工添加的分隔符。"
+            }
+          },
+          "required": [
+            "start",
+            "end",
+            "containsSynthetic"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "start": {
+              "$ref": "urn:perchcore:api:v1.5:common#/$defs/EpubSourceEndpoint"
+            },
+            "end": {
+              "$ref": "urn:perchcore:api:v1.5:common#/$defs/EpubSourceEndpoint"
+            },
+            "containsSynthetic": {
+              "type": "boolean",
+              "description": "请求区间是否包含 EPUB 抽取时人工添加的分隔符。"
+            }
+          },
+          "required": [
+            "start",
+            "end",
+            "containsSynthetic"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "IndexHit": {
+      "type": "object",
+      "properties": {
+        "char_start": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18446744073709551615
+        },
+        "char_end": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18446744073709551615
+        },
+        "chunk": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18446744073709551615
+        },
+        "snippet": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "char_start",
+        "char_end",
+        "chunk",
+        "snippet"
+      ],
+      "additionalProperties": false
+    },
+    "Refinement": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "author": {
+          "type": "string"
+        },
+        "language": {
+          "type": "string"
+        },
+        "encoding": {
+          "type": "string"
+        },
+        "coverHref": {
+          "type": "string"
+        },
+        "toc": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "spineCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "charCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18446744073709551615
+        }
+      },
+      "required": [
+        "spineCount",
+        "charCount"
+      ],
+      "additionalProperties": false
+    },
+    "Outline": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "pageIndex": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "children": {
+          "type": "array",
+          "items": {
+            "$ref": "urn:perchcore:api:v1.5:common#/$defs/Outline"
+          }
+        }
+      },
+      "required": [
+        "title"
+      ],
+      "additionalProperties": false
+    },
+    "PdfInfo": {
+      "type": "object",
+      "properties": {
+        "pageCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "version": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "author": {
+          "type": "string"
+        },
+        "subject": {
+          "type": "string"
+        },
+        "producer": {
+          "type": "string"
+        },
+        "outline": {
+          "type": "array",
+          "items": {
+            "$ref": "urn:perchcore:api:v1.5:common#/$defs/Outline"
+          }
+        }
+      },
+      "required": [
+        "pageCount",
+        "version"
+      ],
+      "additionalProperties": false
+    },
+    "Policy": {
+      "type": "object",
+      "properties": {
+        "maxRefine": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18446744073709551615,
+          "description": "0 禁用精修；与 maxIndex 不能同时为 0；当前 step 每次只做一个任务。",
+          "default": 2
+        },
+        "maxIndex": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18446744073709551615,
+          "description": "0 禁用索引；与 maxRefine 不能同时为 0。",
+          "default": 1
+        },
+        "maxAttempts": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535,
+          "description": "须 >0，超过 u16 范围返回 FFI_BAD_ARGS。",
+          "default": 3
+        },
+        "backoffBaseMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18446744073709551615,
+          "description": "退避毫秒，须 <= backoffMaxMs。",
+          "default": 2000
+        },
+        "backoffMaxMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18446744073709551615,
+          "description": "最大退避毫秒。",
+          "default": 60000
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    },
+    "Gate": {
+      "type": "object",
+      "properties": {
+        "allowAny": {
+          "type": "boolean",
+          "description": "false 时不开始任务。",
+          "default": true
+        },
+        "allowHeavy": {
+          "type": "boolean",
+          "description": "false 时不开始重任务。",
+          "default": true
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    },
+    "PipelineStats": {
+      "type": "object",
+      "properties": {
+        "pendingRefine": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18446744073709551615
+        },
+        "pendingIndex": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18446744073709551615
+        },
+        "inFlight": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18446744073709551615
+        },
+        "exhausted": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 18446744073709551615
+        }
+      },
+      "required": [
+        "pendingRefine",
+        "pendingIndex",
+        "inFlight",
+        "exhausted"
+      ],
+      "additionalProperties": false
+    },
+    "PipelineActivity": {
+      "type": "object",
+      "properties": {
+        "book": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "stage": {
+          "type": "string",
+          "enum": [
+            "refine",
+            "index"
+          ]
+        },
+        "checkpoint": {
+          "type": "string",
+          "enum": [
+            "preparing",
+            "readingSource",
+            "resolvingFormat",
+            "refining",
+            "savingRefinement",
+            "extractingText",
+            "buildingIndex",
+            "savingIndex",
+            "committing"
+          ]
+        },
+        "cancelRequested": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "book",
+        "stage",
+        "checkpoint",
+        "cancelRequested"
+      ],
+      "additionalProperties": false
+    },
+    "Recovered": {
+      "type": "object",
+      "properties": {
+        "book": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "registered",
+            "refining",
+            "indexing",
+            "ready",
+            "failed"
+          ]
+        },
+        "attempts": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535
+        },
+        "failedStage": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "refine",
+                "index"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "最近业务失败，或 STORE_* 前缀的产物恢复诊断。"
+        },
+        "retryAtMs": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 18446744073709551615
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "book",
+        "state",
+        "attempts",
+        "failedStage",
+        "reason",
+        "retryAtMs"
+      ],
+      "additionalProperties": false
+    },
+    "PipelineState": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "known": {
+              "const": false
+            }
+          },
+          "required": [
+            "known"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "known": {
+              "const": true
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "registered",
+                "refining",
+                "indexing",
+                "ready",
+                "failed"
+              ]
+            },
+            "attempts": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 65535
+            },
+            "failedStage": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "refine",
+                    "index"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "reason": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "最近业务失败，或 STORE_* 前缀的产物恢复诊断。"
+            },
+            "retryAtMs": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 18446744073709551615
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "known",
+            "state",
+            "attempts",
+            "failedStage",
+            "reason",
+            "retryAtMs"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "PipelineStep": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "outcome": {
+              "const": "idle"
+            },
+            "stats": {
+              "$ref": "urn:perchcore:api:v1.5:common#/$defs/PipelineStats"
+            }
+          },
+          "required": [
+            "outcome",
+            "stats"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "outcome": {
+              "const": "refined"
+            },
+            "stats": {
+              "$ref": "urn:perchcore:api:v1.5:common#/$defs/PipelineStats"
+            },
+            "book": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "stage": {
+              "const": "refine"
+            }
+          },
+          "required": [
+            "outcome",
+            "stats",
+            "book",
+            "stage"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "outcome": {
+              "const": "indexed"
+            },
+            "stats": {
+              "$ref": "urn:perchcore:api:v1.5:common#/$defs/PipelineStats"
+            },
+            "book": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "stage": {
+              "const": "index"
+            },
+            "chunks": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 18446744073709551615
+            },
+            "tokens": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 18446744073709551615
+            }
+          },
+          "required": [
+            "outcome",
+            "stats",
+            "book",
+            "stage",
+            "chunks",
+            "tokens"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "outcome": {
+              "const": "cancelled"
+            },
+            "stats": {
+              "$ref": "urn:perchcore:api:v1.5:common#/$defs/PipelineStats"
+            },
+            "book": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "stage": {
+              "type": "string",
+              "enum": [
+                "refine",
+                "index"
+              ]
+            }
+          },
+          "required": [
+            "outcome",
+            "stats",
+            "book",
+            "stage"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "outcome": {
+              "const": "failed"
+            },
+            "stats": {
+              "$ref": "urn:perchcore:api:v1.5:common#/$defs/PipelineStats"
+            },
+            "book": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "stage": {
+              "type": "string",
+              "enum": [
+                "refine",
+                "index"
+              ]
+            },
+            "reason": {
+              "type": "string"
+            },
+            "attempts": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 65535
+            },
+            "retryAtMs": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 18446744073709551615
+            }
+          },
+          "required": [
+            "outcome",
+            "stats",
+            "book",
+            "stage",
+            "reason",
+            "attempts",
+            "retryAtMs"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "outcome": {
+              "const": "exhausted"
+            },
+            "stats": {
+              "$ref": "urn:perchcore:api:v1.5:common#/$defs/PipelineStats"
+            },
+            "book": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "stage": {
+              "type": "string",
+              "enum": [
+                "refine",
+                "index"
+              ]
+            },
+            "reason": {
+              "type": "string"
+            },
+            "attempts": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 65535
+            }
+          },
+          "required": [
+            "outcome",
+            "stats",
+            "book",
+            "stage",
+            "reason",
+            "attempts"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "Point": {
+      "type": "object",
+      "properties": {
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "x",
+        "y"
+      ],
+      "additionalProperties": false
+    },
+    "Shadow": {
+      "type": "object",
+      "properties": {
+        "start": {
+          "$ref": "urn:perchcore:api:v1.5:common#/$defs/Point"
+        },
+        "end": {
+          "$ref": "urn:perchcore:api:v1.5:common#/$defs/Point"
+        },
+        "start_opacity": {
+          "type": "number"
+        },
+        "end_opacity": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "start",
+        "end",
+        "start_opacity",
+        "end_opacity"
+      ],
+      "additionalProperties": false
+    },
+    "Geometry": {
+      "type": "object",
+      "properties": {
+        "fold_start": {
+          "$ref": "urn:perchcore:api:v1.5:common#/$defs/Point"
+        },
+        "fold_end": {
+          "$ref": "urn:perchcore:api:v1.5:common#/$defs/Point"
+        },
+        "midpoint": {
+          "$ref": "urn:perchcore:api:v1.5:common#/$defs/Point"
+        },
+        "direction": {
+          "$ref": "urn:perchcore:api:v1.5:common#/$defs/Point"
+        },
+        "radius": {
+          "type": "number"
+        },
+        "curl_angle": {
+          "type": "number"
+        },
+        "band_extent": {
+          "type": "number"
+        },
+        "progress": {
+          "type": "number"
+        },
+        "front_outline": {
+          "type": "array",
+          "items": {
+            "$ref": "urn:perchcore:api:v1.5:common#/$defs/Point"
+          }
+        },
+        "shadow": {
+          "$ref": "urn:perchcore:api:v1.5:common#/$defs/Shadow"
+        }
+      },
+      "required": [
+        "fold_start",
+        "fold_end",
+        "midpoint",
+        "direction",
+        "radius",
+        "curl_angle",
+        "band_extent",
+        "progress",
+        "front_outline",
+        "shadow"
+      ],
+      "additionalProperties": false
+    },
+    "MergeStats": {
+      "type": "object",
+      "properties": {
+        "initialized": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "updated": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "staleIgnored": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "conflicts": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "unchanged": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        }
+      },
+      "required": [
+        "initialized",
+        "updated",
+        "staleIgnored",
+        "conflicts",
+        "unchanged"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

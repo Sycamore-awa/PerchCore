@@ -20,8 +20,8 @@
 |---|---:|---|
 | Rust workspace / Dart 包 | `0.1.0` | 各 Rust crate 同版本；Dart 包同步版本 |
 | C ABI | v1 | 保留 `perch_call` / `perch_string_free`，增量导出 `perch_context_call` |
-| JSON 方法集 | v1.4 | 35 个方法；新增 `book.locate`，既有请求和搜索结果保留 |
-| JSON Schema | v1.4 当前快照 | Draft 2020-12，`$id` 使用 `urn:perchcore:api:v1.4:*`；v1.1/v1.2/v1.3 冻结保留 |
+| JSON 方法集 | v1.5 | 36 个方法；`pipeline.step` 新增 `cancelled` 结果，并新增非阻塞 `pipeline.progress` |
+| JSON Schema | v1.5 当前快照 | Draft 2020-12，`$id` 使用 `urn:perchcore:api:v1.5:*`；v1.1/v1.2/v1.3/v1.4 冻结保留 |
 | Locator `perch` 扩展 | `v = 1` | 写入 v1；`Locator::validate` 用 `MODEL_UNSUPPORTED_VERSION` 拒绝其他版本 |
 | `index.bin` | v1 | 魔数后的单字节版本；未知版本返回 `INDEX_UNSUPPORTED_VERSION` |
 | `text.json` | 读 v0/v1，写 v1 | 缺省版本按 legacy v0；未知版本返回 `BOOK_TEXT_UNSUPPORTED_VERSION` |
@@ -52,6 +52,7 @@
 - JSON API 定义为 `{major, minor}`。新方法或保留旧请求的可选输入分支可增加 minor；不得新增旧调用必须提供的字段、改变成功结果形状或重解释既有字段语义。context 由新 C 调用入口携带，不给旧业务 args 增加 context。
 - v1.3 为 jobs.refine/book.open 增加互斥的 path 输入分支，旧 bytes_hex 分支的参数与结果保留。不能与旧请求兼容的形状使用新方法或新 major，旧方法至少保留一个次版本并在迁移文档中标明替代项。
 - v1.4 新增 book.locate，搜索命中与旧 Locator 语义保留。v1.3 的三个 Schema 与 189 组请求/响应冻结，新增源端点使用 v1.4 快照。
+- v1.5 新增 pipeline.step 的 cancelled 分支与协作取消语义，并新增 `pipeline.progress` 返回在途 book/阶段/粗粒度 checkpoint。同一 minor 内收紧 `context.close` 生命周期语义：返回前请求 pipeline 取消并排空已接受调用，请求/响应形状不变。v1.4 的三个 Schema 与 261 组请求/响应冻结；旧客户端如对 step outcome 做穷举，应在启用取消前升级类型化绑定或保留未知分支。
 - Schema `$id` 使用固定快照 URN。API v1.1 的 `urn:perchcore:api:v1:*`、v1.2 的 `urn:perchcore:api:v1.2:*` 和 v1.3 的 `urn:perchcore:api:v1.3:*` 永久保留；增加 minor 时创建新快照，不给旧 URN 换内容。新 major 同样使用新的 major URN。
 - Schema 是离线规范而不是运行时自动验证。调用方必须同时检查 API major 和自己依赖的方法/field 能力。
 

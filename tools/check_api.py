@@ -42,6 +42,13 @@ FROZEN_V1_3_FILES = {
     "examples.json": "9fc2cea996f32387c89f42902f3306dd3690b72def359845be37dc4cc2ea3b33",
     "responses.json": "2e536e679eeda8bcdd92792604f51c61924c48a7b3821a0d78df09ff8d2be9e2",
 }
+FROZEN_V1_4_FILES = {
+    "common.schema.json": "b83861b551fc0850401f39cb7ef9f9a1c22b413fee58f881a17a38079d531299",
+    "request.schema.json": "bfd4a87df12ec24cc78703004164a936d8581c35a5947eb4b46b0ade781cbe75",
+    "response.schema.json": "83a371b14a64292ce33dfde2c1a181ab4da67e8f2ee7efe8d3621f89984f85e1",
+    "examples.json": "7ce17dbcbbb39123b6de047d1bda55517e82ab422ff0887c401730085bf80f6a",
+    "responses.json": "58910e3f7cca4422080e3042814fb6b7fa18ccbbdacce37c8736a288e0d1f5bc",
+}
 
 
 def read_json(path):
@@ -150,7 +157,7 @@ def check_offline(require_responses=True):
     validation = validators()
     catalog = read_json(ROOT / "api/catalog.json")["methods"]
     names = {entry["name"] for entry in catalog}
-    assert len(names) == len(catalog) == 35
+    assert len(names) == len(catalog) == 36
     assert names == method_names(), f"FFI/catalog method drift: {names ^ method_names()}"
     fixtures = read_json(ROOT / "api/examples.json")
     calls = [call for call in fixtures["calls"] if "method" in call]
@@ -188,8 +195,9 @@ def check_offline(require_responses=True):
     check_path_parity(responses)
     check_frozen_v1_2()
     check_frozen_v1_3()
+    check_frozen_v1_4()
     check_location_parity(responses)
-    print(f"Offline contracts: {len(names)} methods / 3 current + 9 frozen Draft 2020-12 schemas / {len(calls)} request-response examples passed")
+    print(f"Offline contracts: {len(names)} methods / 3 current + 12 frozen Draft 2020-12 schemas / {len(calls)} request-response examples passed")
     return validation
 
 
@@ -231,6 +239,10 @@ def check_frozen_v1_2():
 
 def check_frozen_v1_3():
     check_frozen("v1.3", FROZEN_V1_3_FILES, 189)
+
+
+def check_frozen_v1_4():
+    check_frozen("v1.4", FROZEN_V1_4_FILES, 261)
 
 
 def check_frozen(version, hashes, count):
@@ -296,11 +308,12 @@ def build_clients(clients, library, skip_build):
         executable = next(path for path in (build / filename, build / "Release" / filename) if path.exists())
         commands["c"] = ([str(executable)], ROOT)
     if "dart" in clients:
+        dart_bin = os.environ.get("PERCH_DART_BIN", "dart")
         package = ROOT / "bindings/dart/perch_core"
-        run_command(["dart", "pub", "get"], cwd=package)
+        run_command([dart_bin, "pub", "get"], cwd=package)
         # AOT verifies the same deployment mode as native desktop applications.
         executable = ROOT / "target" / ("api-dart.exe" if sys.platform == "win32" else "api-dart")
-        run_command(["dart", "compile", "exe", "tool/api_replay.dart", "-o", str(executable)], cwd=package)
+        run_command([dart_bin, "compile", "exe", "tool/api_replay.dart", "-o", str(executable)], cwd=package)
         commands["dart"] = ([str(executable), str(library)], ROOT)
     return commands, env
 

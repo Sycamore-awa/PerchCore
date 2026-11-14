@@ -1,6 +1,6 @@
 # 阅读器宿主联调
 
-本文描述 PerchCore 与阅读器宿主之间的最小完整流程。当前仓库不包含旧 PerchReader App，因此可在本仓库内验证的边界到“宿主已取得可交给渲染器的源坐标”为止。
+本文描述 PerchCore 与阅读器宿主之间的最小完整流程。命令行示例保留为 SDK 独立回归；同级 `PerchReader` Flutter 工程已将该流程接入真实书架、TXT 阅读页和 Linux WebKit EPUB 窗口。
 
 ## 可执行流程
 
@@ -41,4 +41,4 @@ EPUB 宿主先打开 `EpubSourceEndpoint.href` 指向的 spine 资源，然后�
 - 源文件删除、产物损坏和旧版本产物在 UI 中有可理解的恢复/重方向提示。
 - App 关闭书籍或销毁服务后，所有句柄和 context 被回收。
 
-当前机器上没有可写的 PerchReader App 工程，所以排版、DOM 选区、页面滚动与真机生命周期尚未执行。提供 App 工作区后，上述示例的 `PerchServices` 调用顺序可直接迁入应用层。
+当前 Linux 已完成真实 worker/context 生命周期、Ready 恢复、TXT scalar 分页、EPUB nodePath/UTF-16 DOM Range 高亮、本地 TXT/EPUB 导入，以及按内容指纹恢复 TXT 分页起点/EPUB 章节。未完成的主要是源文件删除后的 UI 降级、EPUB 章内滚动恢复和移动真机生命周期。

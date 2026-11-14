@@ -55,7 +55,7 @@ just api-check
 just api-replay
 ```
 
-离线检查覆盖 35 个方法、当前 v1.4 与冻结 v1.1/v1.2/v1.3 的 12 个 Draft 2020-12 Schema、261 组当前请求/响应及 161/189 组冻结夹具和规范拒绝用例。真实重放编译持久 C 与 Dart AOT 客户端，以相同序列验证成功结果、错误码、版本协商、独立 context、句柄/配额、源定位、产物恢复、EOF、管线与同步；详情见 [接口工具说明](../api/README.md)。只跑离线检查不需要 C/Dart 工具链。
+离线检查覆盖 36 个方法、当前 v1.5 与冻结 v1.1/v1.2/v1.3/v1.4 的 15 个 Draft 2020-12 Schema、262 组当前请求/响应及 161/189/261 组冻结夹具和规范拒绝用例。真实重放编译持久 C 与 Dart AOT 客户端，以相同序列验证成功结果、错误码、版本协商、独立 context、句柄/配额、源定位、产物恢复、EOF、管线与同步；协作取消和非阻塞活动快照另由并发 Rust 回归和 Dart worker smoke 覆盖。详情见 [接口工具说明](../api/README.md)。只跑离线检查不需要 C/Dart 工具链。
 
 ## iOS 核心交叉编译
 
@@ -80,6 +80,6 @@ Linux 可以检查 Rust target 并打包 iOS staticlib。用 cargo rustc 覆盖 
 - `core-host`：Linux/macOS/Windows 上样本重建、Python CLI/统计与离线 API 检查、格式、Clippy、全量测试、示例、FFI 构建和基准工具冒烟；Linux/macOS 运行 C 示例及完整调用序列。
 - `msrv`：Rust 1.88 的全量 target/feature 编译检查。
 - `ios-cross`：Linux 上 iOS 真机/模拟器交叉检查和静态库符号检查。
-- `dart-ffi`：Linux 上 Dart 绑定分析、172 项真实 FFI 冒烟、阅读器宿主导入/重启/搜索/回源流程、完整 C/Dart AOT 契约一致性、最小 TXT 示例和 Dart/AOT worker 基准冒烟。
+- `dart-ffi`：Linux 上 Dart 绑定分析、181 项真实 FFI 冒烟、阅读器宿主导入/重启/搜索/回源流程、完整 C/Dart AOT 契约一致性、最小 TXT 示例和 Dart/AOT worker 基准冒烟。
 
 CI 仅检验核心与绑定，未设置 Flutter App 构建、真机或发布到包仓库的自动任务。

@@ -65,7 +65,7 @@ Future<void> main(List<String> args) async {
   final compatibility = core.compatibility();
   check('C ABI 版本', compatibility['abi'], 1);
   check('JSON API major', (compatibility['api'] as Map)['major'], 1);
-  check('JSON API minor', (compatibility['api'] as Map)['minor'], 4);
+  check('JSON API minor', (compatibility['api'] as Map)['minor'], 5);
   check('Locator 写入版本', (compatibility['locator'] as Map)['write'], 1);
 
   final contextDir = Directory.systemTemp.createTempSync('perch-context-');
@@ -869,6 +869,42 @@ Future<void> _typedSmoke(String libraryPath) async {
     fingerprint.value,
     core.fingerprint(size: bytes.length, head: bytes, tail: bytes),
   );
+  final cancelPipeline = await services.openPipeline('${dir.path}/cancel-out');
+  final cancelledBook = _uuidV4();
+  await cancelPipeline.enqueue(
+    book: cancelledBook,
+    path: path.path,
+    format: 'txt',
+  );
+  check('独立控制 isolate 可查空闲进度', await cancelPipeline.progress(), null);
+  await cancelPipeline.cancel(cancelledBook);
+  checkTrue(
+    '独立控制 isolate 可撤出排队任务',
+    await cancelPipeline.step(nowMs: 0) is StepIdle,
+  );
+  final cancelledOutcome = StepOutcome.fromJson({
+    'outcome': 'cancelled',
+    'book': cancelledBook,
+    'stage': 'refine',
+    'stats': {
+      'pendingRefine': 0,
+      'pendingIndex': 0,
+      'inFlight': 0,
+      'exhausted': 0,
+    },
+  });
+  checkTrue('类型化 cancelled 结果', cancelledOutcome is StepCancelled);
+  checkTrue('旧 StepIdle 分支可兜底 cancelled', cancelledOutcome is StepIdle);
+  final activity = PipelineActivity.fromJson({
+    'book': cancelledBook,
+    'stage': 'index',
+    'checkpoint': 'buildingIndex',
+    'cancelRequested': true,
+  });
+  check('类型化进度阶段', activity.stage, PipelineStage.indexing);
+  check('类型化进度检查点', activity.checkpoint, PipelineCheckpoint.buildingIndex);
+  checkTrue('类型化进度取消标记', activity.cancelRequested);
+  await cancelPipeline.close();
   final pipeline = await services.openPipeline('${dir.path}/out');
   final book = _uuidV4();
   check(
@@ -969,6 +1005,36 @@ Future<void> _typedSmoke(String libraryPath) async {
     isolatedPipelines[0].handle != isolatedPipelines[1].handle,
   );
   await Future.wait([isolatedFirst.close(), isolatedSecond.close()]);
+  // An established context must be reclaimed even if its worker exits abruptly.
+  final abandonedWorker = await PerchWorker.spawn(libraryPath: libraryPath);
+  final abandonedServices = PerchServices(abandonedWorker);
+  final abandonedTxt = await abandonedServices.openTxt(path.path);
+  final abandonedFailure = abandonedWorker.failures.first;
+  abandonedWorker.terminate();
+  await abandonedFailure.timeout(const Duration(seconds: 3));
+  await abandonedServices.close().timeout(const Duration(seconds: 3));
+  check(
+    'worker 异常退出后回收 context 及其句柄',
+    core.invoke('txt.close', {'handle': abandonedTxt.handle})['closed'],
+    false,
+  );
+  // Context creation no longer depends on the long-lived worker delivering the
+  // id. Killing that worker while open is in flight must still leave a known,
+  // reclaimable context.
+  final startupWorker = await PerchWorker.spawn(libraryPath: libraryPath);
+  final openingContext = startupWorker.openContext();
+  final startupFailure = startupWorker.failures.first;
+  startupWorker.terminate();
+  final startupContext = await openingContext.timeout(
+    const Duration(seconds: 3),
+  );
+  await startupFailure.timeout(const Duration(seconds: 3));
+  await startupWorker.dispose().timeout(const Duration(seconds: 3));
+  check(
+    'worker 启动竞态中创建的 context 仍可回收',
+    core.closeContext(startupContext)['closed'],
+    false,
+  );
   // A real isolate exit must fail accepted requests and reject later requests.
   final doomed = await PerchWorker.spawn(libraryPath: libraryPath);
   final requests = List.generate(

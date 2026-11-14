@@ -80,7 +80,7 @@ docs/                架构、接口、存储、验证、性能与迁移记录
 
 ## 后续目标与任务
 
-[阅读器核心路线](docs/roadmap.md) 是后续工作的入口。BASE-01/02、API-01/02、CTX-01/02、IO-01、LOC-01 与 STORE-01 已完成；当前已有可复现样本、Linux 基线、35 方法契约、[版本与兼容策略](docs/compatibility.md)、独立上下文、对象级并发、[文件路径输入](docs/io.md)、[搜索命中回源文本](docs/source-location.md)和[产物恢复规则](docs/storage.md#store-01-恢复规则)。[恢复冷启动基准](docs/benchmarks/2026-11-14-linux-recovery.md) 已量化 1000 本小书库与 300MiB 放大产物书库，尚无需立即引入 manifest/延迟审计。[阅读器宿主流程](docs/reader-integration.md) 已跑通导入、重启恢复、搜索、回源与 TXT/EPUB 坐标输出；下一步需要真实 App 工作区完成阅读视图跳转。
+[阅读器核心路线](docs/roadmap.md) 是后续工作的入口。BASE-01/02、API-01/02、CTX-01/02/03、IO-01、LOC-01 与 STORE-01 已完成；当前已有可复现样本、Linux 基线、36 方法契约、[版本与兼容策略](docs/compatibility.md)、独立上下文、对象级并发、[文件路径输入](docs/io.md)、[搜索命中回源文本](docs/source-location.md)和[产物恢复规则](docs/storage.md#store-01-恢复规则)。[恢复冷启动基准](docs/benchmarks/2026-11-14-linux-recovery.md) 已量化 1000 本小书库与 300MiB 放大产物书库，尚无需立即引入 manifest/延迟审计。[阅读器宿主流程](docs/reader-integration.md) 已在同级 PerchReader Flutter 工程中跑通导入、重启恢复、搜索、回源、TXT 分页和 Linux WebKit EPUB DOM 跳转。[大 TXT 实测](docs/benchmarks/2026-11-14-linux-large-txt.md) 已覆盖 1/10/100 MiB，修复高频词限量查询和可避免的 UTF-8/截断中间分配；CTX-03 已交付[协作取消](docs/cancellation.md)、非阻塞执行快照、worker 异常退出回收和原生 context 关闭排空。下一批工作由移动真机资源预算或实际百分比 UI 需求触发。
 
 ## 验证与性能
 

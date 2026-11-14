@@ -2,7 +2,7 @@
 
 公共头文件为 [include/perch_core.h](../include/perch_core.h)，实际方法实现见 [perch-ffi](../crates/perch-ffi/src/lib.rs)。
 
-全部 35 个方法的参数、返回字段、默认值、单位和错误码见 [完整方法参考](api-reference.md)。机器可读契约与重放说明见 [api](../api/README.md)，包括 Draft 2020-12 Schema 和真实 C/Dart 响应样例。
+全部 36 个方法的参数、返回字段、默认值、单位和错误码见 [完整方法参考](api-reference.md)。机器可读契约与重放说明见 [api](../api/README.md)，包括 Draft 2020-12 Schema 和真实 C/Dart 响应样例。
 
 ```c
 char *perch_call(const uint8_t *method_ptr, size_t method_len,
@@ -29,7 +29,7 @@ void perch_string_free(char *ptr);
 {"error":{"code":"FFI_BAD_ARGS","message":"缺少字符串字段 path"}}
 ```
 
-调用方先解析 error，再读取业务字段。错误码用于逻辑判断，message 用于说明。`version` 保持 `{"core":"0.1.0"}` 旧形状；`compatibility` 返回 C ABI v1、JSON API v1.4、Locator 及 index/text 的可读与写入版本。详细规则见 [版本与兼容策略](compatibility.md)。
+调用方先解析 error，再读取业务字段。错误码用于逻辑判断，message 用于说明。`version` 保持 `{"core":"0.1.0"}` 旧形状；`compatibility` 返回 C ABI v1、JSON API v1.5、Locator 及 index/text 的可读与写入版本。详细规则见 [版本与兼容策略](compatibility.md)。
 
 调用错误与任务失败分开：pipeline.step 的 `failed` / `exhausted` 是正常结果，带 reason；存储失败返回顶层 `PIPELINE_IO`。Dart `invoke` 将顶层 error 转为 `PerchCoreException(code,message)`，并在 finally 中释放 Rust 返回字符串。
 
@@ -42,10 +42,10 @@ void perch_string_free(char *ptr);
 | 搜索 | `book.open/load/search/locate/close`、`index.search` |
 | TXT | `txt.open/slice/locate/offset/line/close`、`txt.analyze/inspect` |
 | PDF | `pdf.analyze` |
-| 导入调度 | `pipeline.open/enqueue/step/status/state/promote/retry/cancel/close` |
+| 导入调度 | `pipeline.open/enqueue/step/status/progress/state/promote/retry/cancel/close` |
 | 可选算法对应接口 | `curl`、`hlc.parse`、`sync.merge/delta` |
 
-该列表、逐项参考与当前 v1.4 Schema 覆盖同一组方法，CI 检查生成文件和 Rust 分发集合无漂移；保留 v1.1/v1.2/v1.3 Schema 冻结快照。Rust 统一入口的 optional features 不改变当前 `perch-ffi` 方法集合。
+该列表、逐项参考与当前 v1.5 Schema 覆盖同一组方法，CI 检查生成文件和 Rust 分发集合无漂移；保留 v1.1/v1.2/v1.3/v1.4 Schema 与对应夹具冻结快照。Rust 统一入口的 optional features 不改变当前 `perch-ffi` 方法集合。
 
 ## 规范请求与实际解析
 
@@ -90,6 +90,6 @@ book、txt、pipeline 在同一数字空间分配句柄，包含 0。每个 cont
 
 错误类型包括 `*_BAD_HANDLE`、`HANDLE_WRONG_KIND`、`CONTEXT_BAD_HANDLE`、`CONTEXT_HANDLE_MISMATCH` 和配额错误。跨 context 误用不会碰巧操作相同数字的另一个对象；拿错类型不会关闭其他对象；重复对象/context close 均幂等。
 
-根 Registry/Mutex 只管理 context、所有权、配额和对象租约；解析、I/O、搜索、定位与切片在根锁之外执行。book/TXT 只读共享，pipeline 按对象 Mutex 串行。close 摘除句柄后拒绝新请求，已经取得 Arc 租约的请求允许完成；取消、等待和事件接口属于后续按需启动的 CTX-03。
+根 Registry/Mutex 只管理 context、所有权、配额和对象租约；解析、I/O、搜索、定位与切片在根锁之外执行。book/TXT 只读共享，pipeline 按对象 Mutex 串行。单对象 close 摘除句柄后拒绝新请求，已经取得 Arc 租约的请求允许完成；`context.close` 还会请求 pipeline 协作取消并等待全部已接受调用退出。
 
-调用方协调同一对象的 use/close。Dart worker 按序处理请求；每个 `PerchServices` 自动创建一个显式 context，close 等待请求、销毁 context 并关闭 worker。异常 isolate 退出仍不能自动调用 context.close；pipeline.cancel 撤出排队任务，不中断已执行的同步 step；产物目录由单拥有者管理，失败调用也可能创建目录或更新源路径登记。
+调用方协调同一对象的 use/close。Dart worker 按序处理普通请求；每个 `PerchServices` 通过受跟踪的短生命周期 isolate 创建一个显式 context，close 等待在途 context 创建、调用原生排空关闭，再关闭 worker。`PipelineHandle.cancel` 通过独立控制 isolate 登记锁外取消信号，在途 step 于安全检查点返回 cancelled；细节见 [协作取消](cancellation.md)。异常 isolate 退出会通过清理 isolate 回收 context 及句柄，包括常驻 worker 被强制终止时尚在创建的 context。产物目录由单拥有者管理，失败调用也可能创建目录或更新源路径登记。

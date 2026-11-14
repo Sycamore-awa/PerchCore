@@ -16,7 +16,7 @@ dart run example/reader_flow.dart ../../../target/release/libperch_ffi.so ../../
 
 先在仓库根目录编译 perch-ffi。macOS 使用 dylib，Windows 使用 dll。移动端需要自己的静态/动态库打包，当前仅附带 iOS 静态链接适配器。
 
-worker 在后台 isolate 按序执行同步计算。Rust 根注册锁只管理句柄租约，解析、搜索、源定位和切片在锁外完成；pipeline 按对象串行。多个 `PerchServices` 实例的句柄配额和销毁互相隔离；正常关闭请使用 `PerchServices.close`。异常退出仍不能自动调用 `context.close`。
+worker 在后台 isolate 按序执行普通同步计算。Rust 根注册锁只管理句柄租约，解析、搜索、源定位和切片在锁外完成；pipeline 按对象串行。API v1.5 起，`PipelineHandle.cancel` 使用短生命周期控制 isolate 绕过忙碌的普通队列，step 在安全检查点返回 `StepCancelled`；`PipelineHandle.progress` 通过同一控制通道返回当前 book、阶段、粗粒度 checkpoint 和取消登记状态。多个 `PerchServices` 实例的句柄配额和销毁互相隔离；正常关闭请使用 `PerchServices.close`。context 由受跟踪的短生命周期 isolate 创建；即使常驻 worker 在创建期间异常退出，主 isolate 仍会等待编号返回，再通过清理 isolate 成组回收 context 及其句柄。
 
 接口说明见 [C ABI](../../../docs/ffi.md)，许可证为 [MIT](../../../LICENSE)。
 
@@ -26,8 +26,8 @@ API v1.4 新增同步 `locateBook(handle:..., charStart:..., charEnd:...)` 与 `
 
 `example/reader_flow.dart` 是无 UI 的阅读器宿主联调入口：用 `PerchServices` 完成路径导入、阶段执行、模拟 App 重启、Ready 恢复、落盘加载、搜索、命中回源、TXT 阅读切片或 EPUB 节点坐标输出，并显式关闭所有句柄。它验证宿主调用链，不代替 Flutter 排版、DOM 选区或真机页面跳转。
 
-全部 35 个方法可通过 `PerchCore.invoke` 调用；显式上下文使用 `openContext`、`invokeInContext` 和 `closeContext`。参数、结果和错误见 [方法参考](../../../docs/api-reference.md)；`PerchCore.compatibility()` 提供 ABI/API/Locator/产物版本查询。顶层 Rust error 转为 `PerchCoreException`，任务 failed/exhausted 仍作为业务结果返回。输入和返回内存由门面管理。
+全部 36 个方法可通过 `PerchCore.invoke` 调用；显式上下文使用 `openContext`、`invokeInContext` 和 `closeContext`。参数、结果和错误见 [方法参考](../../../docs/api-reference.md)；`PerchCore.compatibility()` 提供 ABI/API/Locator/产物版本查询。顶层 Rust error 转为 `PerchCoreException`，任务 failed/exhausted 仍作为业务结果返回。输入和返回内存由门面管理。
 
 句柄包含 0，不能用 0 判断打开失败。TXT 的 start/char/chars 是 Unicode scalar 数；Dart String.length 是 UTF-16 code unit 数，含 emoji 时两者不同。txtByteOffset 对应解码后 UTF-8。Dart int 为有符号 64 位，JSON 数值传参须在本语言可精确表达范围内。
 
-[接口验证工具](../../../api/README.md)会编译 tool/api_replay.dart 为 AOT 程序，与持久 C 客户端重放 261 次调用并比较完整成功结果、错误码、Schema 和响应样例。Dart 不在运行时自动执行 Schema；规范请求检查在开发工具中完成。
+[接口验证工具](../../../api/README.md)会编译 tool/api_replay.dart 为 AOT 程序，与持久 C 客户端重放 262 次调用并比较完整成功结果、错误码、Schema 和响应样例。当前 v1.5 Schema 与 v1.1-v1.4 冻结快照同时校验。Dart 不在运行时自动执行 Schema；规范请求检查在开发工具中完成。

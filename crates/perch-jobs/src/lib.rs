@@ -44,7 +44,7 @@ pub mod pipeline;
 pub mod source_map;
 pub mod store;
 
-pub use pipeline::{BookStore, Pipeline, StepOutcome, StepSummary};
+pub use pipeline::{BookStore, Pipeline, PipelineCheckpoint, StepOutcome, StepSummary};
 pub use source_map::{
     MappedBookText, SOURCE_MAP_VERSION, SourceDocument, SourceEndpoint, SourceLocation, SourceMap,
     SourceMapError, SourceRun, SourceSpan, locate_source_range, mapped_book_text_from_slice,
@@ -468,6 +468,24 @@ pub fn refine(
     }
 }
 
+/// 消费输入缓冲区的精修入口。
+///
+/// TXT 可以在合法 UTF-8 路径直接复用读取缓冲区，避免全文拷贝。
+/// 其他格式保持与 [`refine`] 相同的解析语义。
+pub fn refine_owned(
+    bytes: Vec<u8>,
+    format: Format,
+    options: ExtractOptions,
+) -> Result<Refinement, JobsError> {
+    match format {
+        Format::Epub => refine_epub(&bytes, options),
+        Format::Txt => refine_decoded_txt(perch_txt::decode_owned(bytes), options),
+        Format::Pdf => Err(JobsError::UnsupportedFormat {
+            format: format.as_str(),
+        }),
+    }
+}
+
 /// 按格式抽取正文（阶段③的统一入口）。
 ///
 /// # Errors
@@ -500,6 +518,27 @@ pub fn extract_text_with_source_map(
     match format {
         Format::Epub => extract_epub_text_with_source_map(bytes, options),
         Format::Txt => extract_txt_with_source_map(bytes, options),
+        Format::Pdf => Err(JobsError::UnsupportedFormat {
+            format: format.as_str(),
+        }),
+    }
+}
+
+/// 消费输入缓冲区的正文与源映射抽取入口。
+///
+/// 返回值与 [`extract_text_with_source_map`] 一致；差别只是合法 UTF-8
+/// TXT 不需要在原始字节之外再分配一份完整解码拷贝。
+pub fn extract_text_with_source_map_owned(
+    bytes: Vec<u8>,
+    format: Format,
+    options: ExtractOptions,
+) -> Result<MappedBookText, JobsError> {
+    match format {
+        Format::Epub => extract_epub_text_with_source_map(&bytes, options),
+        Format::Txt => {
+            let decoded = perch_txt::decode_owned(bytes);
+            build_txt_book_text_with_source_map(decoded.text(), options)
+        }
         Format::Pdf => Err(JobsError::UnsupportedFormat {
             format: format.as_str(),
         }),
@@ -580,10 +619,15 @@ fn count_visible_chars(text: &str) -> u64 {
 /// 为什么只压空行、不压行内空白：索引是字面量短语匹配（见 `perch-index`），
 /// 英文单词之间的空格、中文排版缩进如果被吞掉，会改变检索语义；而大段空行
 /// 只会把分片撑大、让 snippet 变成空白，压成一个空行反而更利于阅读与检索。
-fn normalize_txt_whitespace(raw: &str) -> (String, SourceMap) {
-    let mut out = String::with_capacity(raw.len());
+fn normalize_txt_whitespace(raw: &str, max_chars: u64) -> (String, SourceMap, bool) {
+    let capacity = usize::try_from(max_chars)
+        .ok()
+        .and_then(|limit| limit.checked_mul(4))
+        .map_or(raw.len(), |limit| limit.min(raw.len()));
+    let mut out = String::with_capacity(capacity);
     let mut wrote_line = false;
     let mut blank_pending = false;
+    let mut normalized_chars = 0u64;
     let mut source_char = 0;
     let mut source_byte = 0usize;
     let mut previous_newline = (0, 0, 0, 0);
@@ -608,29 +652,43 @@ fn normalize_txt_whitespace(raw: &str) -> (String, SourceMap) {
             }
         } else {
             if wrote_line {
-                out.push('\n');
-                push_txt_newline(&mut map, previous_newline);
+                normalized_chars = normalized_chars.saturating_add(1);
+                push_limited_txt(
+                    &mut out,
+                    &mut map,
+                    "\n",
+                    1,
+                    txt_newline_source(previous_newline),
+                    max_chars,
+                );
                 if blank_pending {
-                    out.push('\n');
-                    push_txt_newline(
+                    normalized_chars = normalized_chars.saturating_add(1);
+                    push_limited_txt(
+                        &mut out,
                         &mut map,
-                        (
+                        "\n",
+                        1,
+                        txt_newline_source((
                             previous_newline.1,
                             source_char,
                             previous_newline.3,
                             source_byte as u64,
-                        ),
+                        )),
+                        max_chars,
                     );
                 }
             }
-            out.push_str(line);
-            map.push(
+            normalized_chars = normalized_chars.saturating_add(line_chars);
+            push_limited_txt(
+                &mut out,
+                &mut map,
                 line,
                 line_chars,
                 SourceSpan::Txt {
                     char_start: source_char,
                     byte_start: source_byte as u64,
                 },
+                max_chars,
             );
             wrote_line = true;
             blank_pending = false;
@@ -648,14 +706,13 @@ fn normalize_txt_whitespace(raw: &str) -> (String, SourceMap) {
         decoded_chars: source_char,
         decoded_bytes: raw.len() as u64,
     };
-    (out, map)
+    (out, map, normalized_chars > max_chars)
 }
 
-fn push_txt_newline(
-    map: &mut SourceMap,
+fn txt_newline_source(
     (char_start, char_end, byte_start, byte_end): (u64, u64, u64, u64),
-) {
-    let source = if char_end - char_start == 1 && byte_end - byte_start == 1 {
+) -> SourceSpan {
+    if char_end - char_start == 1 && byte_end - byte_start == 1 {
         SourceSpan::Txt {
             char_start,
             byte_start,
@@ -667,8 +724,35 @@ fn push_txt_newline(
             byte_start,
             byte_end,
         }
+    }
+}
+
+fn push_limited_txt(
+    out: &mut String,
+    map: &mut SourceMap,
+    text: &str,
+    chars: u64,
+    source: SourceSpan,
+    max_chars: u64,
+) {
+    let kept = chars.min(max_chars.saturating_sub(map.indexed_chars));
+    if kept == 0 {
+        return;
+    }
+    let piece = if kept == chars {
+        text
+    } else {
+        let mut end = text.len();
+        for (count, (byte, _)) in text.char_indices().enumerate() {
+            if count as u64 == kept {
+                end = byte;
+                break;
+            }
+        }
+        &text[..end]
     };
-    map.push("\n", 1, source);
+    out.push_str(piece);
+    map.push(piece, kept, source);
 }
 
 /// 按 `\n` / `\r\n` / `\r` 切行，回调收到**不含行尾换行符**的切片。
@@ -701,15 +785,6 @@ fn for_each_txt_line(raw: &str, mut visit: impl FnMut(&str)) {
     visit(&raw[start..]);
 }
 
-/// 截断到前 `max_chars` 个字符（按 `char` 边界，不会切坏 UTF-8）。
-fn truncate_chars(text: &str, max_chars: u64) -> String {
-    // 32 位平台上 u64 可能超出 usize；超出即视为"不截断"
-    match usize::try_from(max_chars) {
-        Ok(limit) => text.chars().take(limit).collect(),
-        Err(_) => text.to_owned(),
-    }
-}
-
 /// 把已解码的 TXT 正文归一化、截断，并包装成单章节的 [`BookText`]。
 fn build_txt_book_text(decoded: &str, options: ExtractOptions) -> Result<BookText, JobsError> {
     build_txt_book_text_with_source_map(decoded, options).map(MappedBookText::into_book_text)
@@ -719,21 +794,11 @@ fn build_txt_book_text_with_source_map(
     decoded: &str,
     options: ExtractOptions,
 ) -> Result<MappedBookText, JobsError> {
-    let (normalized, mut source_map) = normalize_txt_whitespace(decoded);
-    let total = u64::try_from(normalized.chars().count()).unwrap_or(u64::MAX);
-    let truncated = total > options.max_chars;
-    let text = if truncated {
-        truncate_chars(&normalized, options.max_chars)
-    } else {
-        normalized
-    };
+    let (text, source_map, truncated) = normalize_txt_whitespace(decoded, options.max_chars);
     if text.trim().is_empty() {
         return Err(JobsError::EmptyContent);
     }
     let char_count = u64::try_from(text.chars().count()).unwrap_or(u64::MAX);
-    if truncated {
-        source_map.truncate_txt(char_count, text.len() as u64);
-    }
     Ok(MappedBookText::with_source_map(
         BookText {
             format: Format::Txt,
@@ -804,7 +869,13 @@ pub fn extract_txt_with_source_map(
 ///
 /// 同 [`extract_txt`]：没有可读正文时返回 [`JobsError::EmptyContent`]。
 pub fn refine_txt(bytes: &[u8], options: ExtractOptions) -> Result<Refinement, JobsError> {
-    let decoded = perch_txt::decode(bytes);
+    refine_decoded_txt(perch_txt::decode(bytes), options)
+}
+
+fn refine_decoded_txt(
+    decoded: perch_txt::DecodedText,
+    options: ExtractOptions,
+) -> Result<Refinement, JobsError> {
     let encoding = Some(decoded.encoding().to_owned());
     let book = build_txt_book_text(decoded.text(), options)?;
     Ok(Refinement {
@@ -1254,10 +1325,42 @@ mod tests {
     #[test]
     fn normalize_collapses_blank_lines_and_keeps_inline_spaces() {
         let raw = "\r\n\r\n  第一段  有空格 \r\n \r\n\t\r\n第二段\r\n\r\n\r\n";
-        let normalized = normalize_txt_whitespace(raw).0;
+        let normalized = normalize_txt_whitespace(raw, u64::MAX).0;
         assert_eq!(
             normalized, "  第一段  有空格 \n\n第二段",
             "首尾空行丢弃，视觉空行合并成一个空行，行内空格保留"
+        );
+    }
+
+    #[test]
+    fn limited_normalization_matches_the_full_prefix_without_full_output_capacity() {
+        let raw = "第一行文字\r\n\r\n\r\n第二行文字\n".repeat(10_000);
+        let full = normalize_txt_whitespace(&raw, u64::MAX).0;
+        let (limited, map, truncated) = normalize_txt_whitespace(&raw, 200);
+        assert_eq!(limited, full.chars().take(200).collect::<String>());
+        assert!(truncated);
+        assert_eq!(map.indexed_chars, 200);
+        assert!(limited.capacity() <= 800);
+        assert_eq!(
+            map.document,
+            SourceDocument::Txt {
+                decoded_chars: raw.chars().count() as u64,
+                decoded_bytes: raw.len() as u64,
+            }
+        );
+    }
+
+    #[test]
+    fn owned_txt_jobs_match_borrowed_results() {
+        let bytes = "\u{feff}第一段\r\n\r\n第二段文字".repeat(100).into_bytes();
+        let options = ExtractOptions { max_chars: 120 };
+        assert_eq!(
+            refine_owned(bytes.clone(), Format::Txt, options).unwrap(),
+            refine(&bytes, Format::Txt, options).unwrap()
+        );
+        assert_eq!(
+            extract_text_with_source_map_owned(bytes.clone(), Format::Txt, options).unwrap(),
+            extract_text_with_source_map(&bytes, Format::Txt, options).unwrap()
         );
     }
 

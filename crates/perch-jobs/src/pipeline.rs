@@ -27,8 +27,8 @@ use perch_model::{BookId, Format, ImportState};
 use perch_pipeline::{EnqueueOutcome, Gate, Policy, Priority, Scheduler, Stage};
 
 use crate::{
-    BookText, ExtractOptions, JobsError, MappedBookText, Refinement, extract_text_with_source_map,
-    index_book, refine,
+    BookText, ExtractOptions, JobsError, MappedBookText, Refinement,
+    extract_text_with_source_map_owned, index_book, refine_owned,
 };
 
 /// 平台侧需要提供的存储能力。
@@ -110,6 +110,13 @@ pub enum StepOutcome {
         /// 倒排里不同 token 的数量。
         tokens: usize,
     },
+    /// 任务在安全检查点观察到取消请求，未提交成功状态。
+    Cancelled {
+        /// 书。
+        book: BookId,
+        /// 被取消的阶段。
+        stage: Stage,
+    },
     /// 某一步失败，已安排退避重试。
     Failed {
         /// 书。
@@ -136,6 +143,33 @@ pub enum StepOutcome {
     },
     /// A checkpoint or artifact could not be written.
     IoFailed { book: BookId, error: String },
+}
+
+/// A stable, coarse checkpoint for an in-flight pipeline step.
+///
+/// These checkpoints describe the operation currently being executed. They do
+/// not pretend to be percentages: a parser or index build can have very
+/// different costs for different books.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PipelineCheckpoint {
+    /// The scheduler selected the task and the stage checkpoint is being written.
+    Preparing,
+    /// The source file is being read.
+    ReadingSource,
+    /// The registered source format is being resolved.
+    ResolvingFormat,
+    /// Metadata and structural refinement is running.
+    Refining,
+    /// The refinement artifact is being persisted.
+    SavingRefinement,
+    /// Search text and source mappings are being extracted.
+    ExtractingText,
+    /// The in-memory search index is being built.
+    BuildingIndex,
+    /// Index, text, and source-map artifacts are being persisted.
+    SavingIndex,
+    /// The successful stage checkpoint is being committed.
+    Committing,
 }
 
 /// 驱动循环。
@@ -228,8 +262,8 @@ impl<S: BookStore> Pipeline<S> {
     }
 
     /// 删书：取消所有相关任务。
-    pub fn cancel(&mut self, book: BookId) {
-        self.scheduler.cancel(book);
+    pub fn cancel(&mut self, book: BookId) -> bool {
+        self.scheduler.cancel(book)
     }
 
     /// 借用调度器（查统计、看队列）。
@@ -260,15 +294,48 @@ impl<S: BookStore> Pipeline<S> {
     /// 刻意一次只做一个：调用方（后台线程 / 前台帧间）可以自由决定节奏，
     /// 也能在任意两次调用之间被打断。
     pub fn step(&mut self, now_ms: u64, gate: Gate) -> StepOutcome {
+        self.step_cancellable(now_ms, gate, |_| false)
+    }
+
+    /// 做一个任务，并在昂贵子操作之间检查取消请求。
+    ///
+    /// 取消是协作式的：正在进行的文件读取、解析或索引构建会先返回，随后才在
+    /// 下一个安全检查点退出。已观察到取消后不会保存后续产物或提交 `Ready`。
+    pub fn step_cancellable(
+        &mut self,
+        now_ms: u64,
+        gate: Gate,
+        is_cancelled: impl Fn(BookId) -> bool,
+    ) -> StepOutcome {
+        self.step_observable(now_ms, gate, is_cancelled, |_, _, _| {})
+    }
+
+    /// Do one task while publishing coarse checkpoints between expensive operations.
+    ///
+    /// The observer is synchronous and should stay cheap. It is invoked before
+    /// the named operation begins, so another thread can report useful activity
+    /// while that operation is in progress.
+    pub fn step_observable(
+        &mut self,
+        now_ms: u64,
+        gate: Gate,
+        is_cancelled: impl Fn(BookId) -> bool,
+        observe: impl Fn(BookId, Stage, PipelineCheckpoint),
+    ) -> StepOutcome {
         let Some(assignment) = self.scheduler.next(now_ms, gate) else {
             return StepOutcome::Idle;
         };
         let book = assignment.book;
         let stage = assignment.stage;
+        observe(book, stage, PipelineCheckpoint::Preparing);
+
+        if let Some(outcome) = self.cancelled(book, stage, &is_cancelled) {
+            return outcome;
+        }
 
         match stage {
-            Stage::Refine => self.run_refine(book, now_ms),
-            Stage::Index => self.run_index(book, now_ms),
+            Stage::Refine => self.run_refine(book, now_ms, &is_cancelled, &observe),
+            Stage::Index => self.run_index(book, now_ms, &is_cancelled, &observe),
         }
     }
 
@@ -277,7 +344,7 @@ impl<S: BookStore> Pipeline<S> {
     /// ⚠️ 全程用**同一个** `now_ms`，因此**不会**触发退避重试（退避要看时间前进）。
     /// 想验证重试/耗尽，请自己循环调用 [`Pipeline::step`] 并推进时钟。
     ///
-    /// 返回每种结果出现的次数，顺序为 `(refined, indexed, failed, exhausted)`。
+    /// 返回每种结果出现的次数。
     pub fn run_until_idle(&mut self, now_ms: u64, gate: Gate, max_steps: usize) -> StepSummary {
         let mut summary = StepSummary::default();
         for _ in 0..max_steps {
@@ -285,6 +352,7 @@ impl<S: BookStore> Pipeline<S> {
                 StepOutcome::Idle => break,
                 StepOutcome::Refined { .. } => summary.refined += 1,
                 StepOutcome::Indexed { .. } => summary.indexed += 1,
+                StepOutcome::Cancelled { .. } => summary.cancelled += 1,
                 StepOutcome::Failed { .. } => summary.failed += 1,
                 StepOutcome::Exhausted { .. } => summary.exhausted += 1,
                 StepOutcome::IoFailed { .. } => break,
@@ -293,26 +361,49 @@ impl<S: BookStore> Pipeline<S> {
         summary
     }
 
-    fn run_refine(&mut self, book: BookId, now_ms: u64) -> StepOutcome {
+    fn run_refine(
+        &mut self,
+        book: BookId,
+        now_ms: u64,
+        is_cancelled: &impl Fn(BookId) -> bool,
+        observe: &impl Fn(BookId, Stage, PipelineCheckpoint),
+    ) -> StepOutcome {
         // 先落库"正在精修"，崩溃后才看得出这一步没做完
         if let Err(error) = self.store.set_state(book, ImportState::Refining) {
             return self.io_fail(book, error, now_ms);
         }
+        if let Some(outcome) = self.cancelled(book, Stage::Refine, is_cancelled) {
+            return outcome;
+        }
+        observe(book, Stage::Refine, PipelineCheckpoint::ReadingSource);
         let bytes = match self.store.read_bytes(book) {
             Ok(bytes) => bytes,
             Err(error) => return self.fail(book, Stage::Refine, error, now_ms),
         };
+        if let Some(outcome) = self.cancelled(book, Stage::Refine, is_cancelled) {
+            return outcome;
+        }
+        observe(book, Stage::Refine, PipelineCheckpoint::ResolvingFormat);
         let format = match self.store.format(book) {
             Ok(format) => format,
             Err(error) => return self.fail(book, Stage::Refine, error, now_ms),
         };
-        let refinement = match refine(&bytes, format, self.options) {
+        observe(book, Stage::Refine, PipelineCheckpoint::Refining);
+        let refinement = match refine_owned(bytes, format, self.options) {
             Ok(refinement) => refinement,
             Err(error) => return self.fail(book, Stage::Refine, describe(&error), now_ms),
         };
+        if let Some(outcome) = self.cancelled(book, Stage::Refine, is_cancelled) {
+            return outcome;
+        }
+        observe(book, Stage::Refine, PipelineCheckpoint::SavingRefinement);
         if let Err(error) = self.store.save_refinement(book, &refinement) {
             return self.io_fail(book, error, now_ms);
         }
+        if let Some(outcome) = self.cancelled(book, Stage::Refine, is_cancelled) {
+            return outcome;
+        }
+        observe(book, Stage::Refine, PipelineCheckpoint::Committing);
         // ②成功 → 状态推进到 indexing，并把③排进队列
         if let Err(error) = self.store.reset(book, ImportState::Indexing) {
             return self.io_fail(book, error, now_ms);
@@ -325,24 +416,48 @@ impl<S: BookStore> Pipeline<S> {
         StepOutcome::Refined { book }
     }
 
-    fn run_index(&mut self, book: BookId, now_ms: u64) -> StepOutcome {
+    fn run_index(
+        &mut self,
+        book: BookId,
+        now_ms: u64,
+        is_cancelled: &impl Fn(BookId) -> bool,
+        observe: &impl Fn(BookId, Stage, PipelineCheckpoint),
+    ) -> StepOutcome {
+        observe(book, Stage::Index, PipelineCheckpoint::ReadingSource);
         let bytes = match self.store.read_bytes(book) {
             Ok(bytes) => bytes,
             Err(error) => return self.fail(book, Stage::Index, error, now_ms),
         };
+        if let Some(outcome) = self.cancelled(book, Stage::Index, is_cancelled) {
+            return outcome;
+        }
+        observe(book, Stage::Index, PipelineCheckpoint::ResolvingFormat);
         let format = match self.store.format(book) {
             Ok(format) => format,
             Err(error) => return self.fail(book, Stage::Index, error, now_ms),
         };
-        let text = match extract_text_with_source_map(&bytes, format, self.options) {
+        observe(book, Stage::Index, PipelineCheckpoint::ExtractingText);
+        let text = match extract_text_with_source_map_owned(bytes, format, self.options) {
             Ok(text) => text,
             Err(error) => return self.fail(book, Stage::Index, describe(&error), now_ms),
         };
+        if let Some(outcome) = self.cancelled(book, Stage::Index, is_cancelled) {
+            return outcome;
+        }
+        observe(book, Stage::Index, PipelineCheckpoint::BuildingIndex);
         let index = index_book(text.book_text(), self.chunk_chars);
+        if let Some(outcome) = self.cancelled(book, Stage::Index, is_cancelled) {
+            return outcome;
+        }
         let stats = index.stats();
+        observe(book, Stage::Index, PipelineCheckpoint::SavingIndex);
         if let Err(error) = self.store.save_index_with_source_map(book, index, text) {
             return self.io_fail(book, error, now_ms);
         }
+        if let Some(outcome) = self.cancelled(book, Stage::Index, is_cancelled) {
+            return outcome;
+        }
+        observe(book, Stage::Index, PipelineCheckpoint::Committing);
         if let Err(error) = self.store.reset(book, ImportState::Ready) {
             return self.io_fail(book, error, now_ms);
         }
@@ -352,6 +467,19 @@ impl<S: BookStore> Pipeline<S> {
             chunks: stats.chunks,
             tokens: stats.tokens,
         }
+    }
+
+    fn cancelled(
+        &mut self,
+        book: BookId,
+        stage: Stage,
+        is_cancelled: &impl Fn(BookId) -> bool,
+    ) -> Option<StepOutcome> {
+        if !is_cancelled(book) {
+            return None;
+        }
+        self.scheduler.cancel(book);
+        Some(StepOutcome::Cancelled { book, stage })
     }
 
     fn fail(&mut self, book: BookId, stage: Stage, error: String, now_ms: u64) -> StepOutcome {
@@ -409,6 +537,8 @@ pub struct StepSummary {
     pub refined: u32,
     /// ③完成次数。
     pub indexed: u32,
+    /// 协作取消次数。
+    pub cancelled: u32,
     /// 失败（已安排重试）次数。
     pub failed: u32,
     /// 重试耗尽的次数。
@@ -689,10 +819,66 @@ mod tests {
         let book = BookId::new();
         let mut pipeline = pipeline_with(store_with_book(book));
         pipeline.enqueue(book, ImportState::Registered, Priority::Normal);
-        pipeline.cancel(book);
+        assert!(pipeline.cancel(book));
         assert!(pipeline.is_idle());
         assert_eq!(pipeline.step(0, Gate::foreground()), StepOutcome::Idle);
     }
+
+    #[test]
+    fn cooperative_cancel_stops_before_refinement_is_saved() {
+        let book = BookId::new();
+        let mut pipeline = pipeline_with(store_with_book(book));
+        pipeline.enqueue(book, ImportState::Registered, Priority::Normal);
+        let checks = std::cell::Cell::new(0u8);
+
+        let outcome = pipeline.step_cancellable(0, Gate::foreground(), |_| {
+            let current = checks.get();
+            checks.set(current.saturating_add(1));
+            current >= 1
+        });
+
+        assert_eq!(
+            outcome,
+            StepOutcome::Cancelled {
+                book,
+                stage: Stage::Refine,
+            }
+        );
+        assert!(pipeline.is_idle());
+        assert_eq!(pipeline.store().states, vec![(book, ImportState::Refining)]);
+        assert!(pipeline.store().refinements.is_empty());
+    }
+
+    #[test]
+    fn observable_step_reports_coarse_refine_checkpoints() {
+        let book = BookId::new();
+        let mut pipeline = pipeline_with(store_with_book(book));
+        pipeline.enqueue(book, ImportState::Registered, Priority::Normal);
+        let observed = std::cell::RefCell::new(Vec::new());
+
+        let outcome = pipeline.step_observable(
+            0,
+            Gate::foreground(),
+            |_| false,
+            |seen_book, stage, checkpoint| {
+                observed.borrow_mut().push((seen_book, stage, checkpoint));
+            },
+        );
+
+        assert!(matches!(outcome, StepOutcome::Refined { book: seen } if seen == book));
+        assert_eq!(
+            observed.into_inner(),
+            vec![
+                (book, Stage::Refine, PipelineCheckpoint::Preparing),
+                (book, Stage::Refine, PipelineCheckpoint::ReadingSource),
+                (book, Stage::Refine, PipelineCheckpoint::ResolvingFormat),
+                (book, Stage::Refine, PipelineCheckpoint::Refining),
+                (book, Stage::Refine, PipelineCheckpoint::SavingRefinement,),
+                (book, Stage::Refine, PipelineCheckpoint::Committing),
+            ]
+        );
+    }
+
     #[test]
     fn txt_book_runs_through_both_stages() {
         let book = BookId::new();

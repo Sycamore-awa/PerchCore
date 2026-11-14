@@ -62,8 +62,8 @@ Readium `partialCfi` 只包含第一个 `!` 右侧的片段。结构兼容并不
 
 Rust API 由调用方决定线程和对象生命周期。C ABI 支持显式 context：`context.open/close` 管理所有权域，`perch_context_call` 在该域中调用原有业务方法。每个 context 独立拥有 8 个搜索句柄、4 个 TXT 句柄、1 个管线句柄；旧 `perch_call` 使用单独的 legacy context。
 
-Dart 同步调用由 `PerchCore` 封装，`PerchWorker` 在常驻 isolate 中按顺序执行；每个 `PerchServices` 自动拥有一个显式 context，并在关闭时等待请求、成组释放对象和 worker。worker 异常退出后仍不能自动执行 context.close，恢复规则留给 CTX-03。
+Dart 同步调用由 `PerchCore` 封装，`PerchWorker` 在常驻 isolate 中按顺序执行；每个 `PerchServices` 自动拥有一个显式 context，并在关闭时等待请求、成组释放对象和 worker。context 由受跟踪的短生命周期 isolate 创建，不依赖常驻 worker 回传编号；worker 异常退出后，主 isolate 会等待在途创建，再用清理 isolate 回收这些 context 及句柄。
 
 对象句柄全进程唯一并记录所属 context；跨 context 误用返回稳定错误。根 Registry/Mutex 只负责 context、所有权、配额与句柄到对象租约的转换；文件 I/O、解析、建索引、搜索、源定位、TXT 切片和管线步骤都在根锁之外执行。book/TXT 是只读共享对象；pipeline 每个句柄有独立 Mutex，同一 pipeline 串行，不同 context 或其他文档可并行。
 
-`*.close` / `context.close` 会立即从注册表摘除句柄，之后的新请求稳定失败；在 close 之前已经取得 `Arc` 租约的在途请求允许完成，不会访问已释放对象。close 不等待、也不取消在途任务；取消与异常退出属于 CTX-03。
+`*.close` 会立即从注册表摘除单个句柄；在 close 之前已经取得 `Arc` 租约的在途请求允许完成。`context.close` 先摘除整个 context，令新请求稳定失败，再请求其 pipeline 在安全检查点取消，并等待所有已接受调用退出后返回。

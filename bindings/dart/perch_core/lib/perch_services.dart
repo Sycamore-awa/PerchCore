@@ -17,6 +17,18 @@ enum PipelinePriority { urgent, normal, background }
 
 enum EnqueueResult { queued, alreadyPresent, notNeeded }
 
+enum PipelineCheckpoint {
+  preparing,
+  readingSource,
+  resolvingFormat,
+  refining,
+  savingRefinement,
+  extractingText,
+  buildingIndex,
+  savingIndex,
+  committing,
+}
+
 class PipelinePolicy {
   const PipelinePolicy({
     this.maxRefine = 2,
@@ -60,6 +72,28 @@ class PipelineStats {
   );
   final int pendingRefine, pendingIndex, inFlight, exhausted;
   bool get hasWork => pendingRefine + pendingIndex + inFlight > 0;
+}
+
+class PipelineActivity {
+  const PipelineActivity({
+    required this.book,
+    required this.stage,
+    required this.checkpoint,
+    required this.cancelRequested,
+  });
+  factory PipelineActivity.fromJson(Map<String, dynamic> json) =>
+      PipelineActivity(
+        book: json['book'] as String,
+        stage: PipelineStage.parse(json['stage'] as String),
+        checkpoint: PipelineCheckpoint.values.byName(
+          json['checkpoint'] as String,
+        ),
+        cancelRequested: json['cancelRequested'] as bool,
+      );
+  final String book;
+  final PipelineStage stage;
+  final PipelineCheckpoint checkpoint;
+  final bool cancelRequested;
 }
 
 class PipelineRecord {
@@ -113,6 +147,11 @@ sealed class StepOutcome {
         json['chunks'] as int,
         json['tokens'] as int,
       ),
+      'cancelled' => StepCancelled(
+        stats,
+        book!,
+        PipelineStage.parse(json['stage'] as String),
+      ),
       'failed' => StepFailed(
         stats,
         book!,
@@ -133,8 +172,8 @@ sealed class StepOutcome {
   }
 }
 
-final class StepIdle extends StepOutcome {
-  const StepIdle(super.stats);
+base class StepIdle extends StepOutcome {
+  const StepIdle(super.stats, [String? super.book]);
 }
 
 final class StepRefined extends StepOutcome {
@@ -144,6 +183,12 @@ final class StepRefined extends StepOutcome {
 final class StepIndexed extends StepOutcome {
   const StepIndexed(super.stats, String super.book, this.chunks, this.tokens);
   final int chunks, tokens;
+}
+
+final class StepCancelled extends StepIdle {
+  const StepCancelled(PipelineStats stats, String book, this.stage)
+    : super(stats, book);
+  final PipelineStage stage;
 }
 
 final class StepFailed extends StepOutcome {
@@ -229,9 +274,7 @@ class BookSearchHit {
 class PerchServices {
   PerchServices(this.worker);
   final PerchWorker worker;
-  late final Future<PerchContext> _context = worker
-      .call('context.open')
-      .then((value) => PerchContext(value['context'] as int));
+  late final Future<PerchContext> _context = worker.openContext();
   final Set<_AsyncHandle> _handles = {};
   bool _closing = false;
   Future<void>? _shutdown;
@@ -243,6 +286,11 @@ class PerchServices {
     String method, [
     Map<String, dynamic>? args,
   ]) async => worker.callInContext(await _context, method, args);
+
+  Future<Map<String, dynamic>> _controlCall(
+    String method, [
+    Map<String, dynamic>? args,
+  ]) async => worker.controlCallInContext(await _context, method, args);
 
   Future<FileFingerprint> fingerprintPath(String path) async {
     _ensureOpen();
@@ -374,10 +422,14 @@ class PerchServices {
       for (final handle in _handles.toList()) {
         await handle.close();
       }
+    } on StateError {
+      // An exited worker cannot drain its serial queue. Its known context still
+      // gets reclaimed below through the short-lived cleanup isolate.
+      if (!worker.failed) rethrow;
     } finally {
       try {
         if (context != null) {
-          await worker.call('context.close', {'context': context.id});
+          await worker.closeContext(context);
         }
       } finally {
         await worker.dispose();
@@ -453,6 +505,18 @@ class PipelineHandle extends _AsyncHandle {
     );
   }
 
+  /// Poll the in-flight step without waiting for the serial worker queue.
+  Future<PipelineActivity?> progress() async {
+    if (_closing != null || owner._closing) {
+      throw StateError('$kind 句柄已关闭');
+    }
+    final r = await owner._controlCall('pipeline.progress', {'handle': handle});
+    final active = r['active'];
+    return active is Map
+        ? PipelineActivity.fromJson(active.cast<String, dynamic>())
+        : null;
+  }
+
   Future<PipelineRecord?> state(String book) async {
     final r = await _call('state', {'book': book});
     return r['known'] == true
@@ -477,7 +541,13 @@ class PipelineHandle extends _AsyncHandle {
           }))['retried']
           as bool;
   Future<void> cancel(String book) async {
-    await _call('cancel', {'book': book});
+    if (_closing != null || owner._closing) {
+      throw StateError('$kind 句柄已关闭');
+    }
+    await owner._controlCall('pipeline.cancel', {
+      'handle': handle,
+      'book': book,
+    });
   }
 }
 

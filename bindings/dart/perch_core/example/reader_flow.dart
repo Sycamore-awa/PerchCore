@@ -109,6 +109,8 @@ Future<void> _runToReady(PipelineHandle pipeline, String book) async {
         stdout.writeln('  refinement ready');
       case StepIndexed(:final chunks, :final tokens):
         stdout.writeln('  index ready: $chunks chunks / $tokens tokens');
+      case StepCancelled(:final stage):
+        throw StateError('导入已取消: ${stage.wireName}');
       case StepFailed(:final reason):
         throw StateError('导入失败: $reason');
       case StepExhausted(:final reason):

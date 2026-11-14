@@ -240,7 +240,7 @@ impl Index {
     /// 正文字符数。
     #[must_use]
     pub fn char_count(&self) -> u64 {
-        self.text.chars().count() as u64
+        self.chunks.last().map_or(0, |range| range.end)
     }
 
     /// 分片大小。
@@ -303,11 +303,27 @@ impl Index {
         }
     }
 
-    /// 搜索。多个词之间是 **AND** 关系。
+    /// 搜索所有命中。
     ///
     /// 返回按字符偏移升序排列的命中列表。
     #[must_use]
     pub fn search(&self, query: &str) -> Vec<Hit> {
+        self.search_inner(query, None)
+    }
+
+    /// 搜索最多 `limit` 条命中。
+    ///
+    /// 命中按字符偏移升序生成，达到上限后立即停止扫描后续分片，
+    /// 避免高频词在调用方截断结果之前先展开全部命中。
+    #[must_use]
+    pub fn search_limited(&self, query: &str, limit: usize) -> Vec<Hit> {
+        self.search_inner(query, Some(limit))
+    }
+
+    fn search_inner(&self, query: &str, limit: Option<usize>) -> Vec<Hit> {
+        if limit == Some(0) {
+            return Vec::new();
+        }
         let trimmed = query.trim();
         if trimmed.is_empty() {
             return Vec::new();
@@ -388,9 +404,11 @@ impl Index {
                     chunk: chunk_id,
                     snippet: self.snippet(char_start, char_end),
                 });
+                if limit.is_some_and(|limit| hits.len() >= limit) {
+                    return hits;
+                }
             }
         }
-        hits.sort_by_key(|hit| hit.char_start);
         hits
     }
 
@@ -574,6 +592,18 @@ mod tests {
         let hits = index.search("测");
         assert_eq!(hits.len(), 1);
         assert_eq!(hits[0].char_start, 2);
+    }
+
+    #[test]
+    fn limited_search_returns_the_ordered_prefix_and_honors_zero() {
+        let index = Index::build("文字".repeat(20_000), 64);
+        let limited = index.search_limited("文字", 20);
+        assert_eq!(limited.len(), 20);
+        assert_eq!(
+            limited.iter().map(|hit| hit.char_start).collect::<Vec<_>>(),
+            (0..20).map(|position| position * 2).collect::<Vec<_>>()
+        );
+        assert!(index.search_limited("文字", 0).is_empty());
     }
 
     #[test]

@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "date": "2026-11-14",
+  "fixture": {
+    "query": "文字",
+    "limit": 20,
+    "line": "第一章 这里是用于 PerchReader 大文件基准的中文文字和 English phrase 12345。\n",
+    "max_indexed_chars": 5000000,
+    "runs_after_fix": 5
+  },
+  "before_fix": {
+    "one_mib_search_ms": 4620.567,
+    "ten_mib": {
+      "completed": false,
+      "elapsed_ms_lower_bound": 60000
+    }
+  },
+  "before_memory_fix": {
+    "hundred_mib": {
+      "max_rss_bytes": 585596928,
+      "pipeline_refine_ms": 111.107,
+      "pipeline_index_ms": 212.380,
+      "txt_open_ms": 115.614,
+      "search_ms": 7.636
+    }
+  },
+  "after_fixes": {
+    "one_mib": {
+      "source_bytes": 1048576,
+      "source_chars": 611696,
+      "indexed_chars": 611696,
+      "truncated": false,
+      "chunks": 150,
+      "tokens": 38,
+      "artifact_bytes": 2114602,
+      "pipeline_refine_ms": [2.584, 2.545, 2.527, 2.552, 2.546],
+      "pipeline_index_ms": [14.398, 13.984, 13.957, 13.956, 14.282],
+      "recovery_open_ms": [1.840, 2.230, 1.851, 1.877, 1.903],
+      "book_load_ms": [2.143, 1.602, 1.503, 1.662, 1.497],
+      "search_ms": [3.583, 4.022, 3.582, 3.683, 3.569],
+      "txt_open_ms": [1.359, 1.366, 1.306, 1.310, 1.306],
+      "first_slice_ms": [0.442, 0.495, 0.425, 0.408, 0.413],
+      "max_rss_bytes": [278999040, 278822912, 279085056, 277692416, 278806528]
+    },
+    "ten_mib": {
+      "source_bytes": 10485760,
+      "source_chars": 6116720,
+      "indexed_chars": 5000000,
+      "truncated": true,
+      "chunks": 1221,
+      "tokens": 38,
+      "artifact_bytes": 17278263,
+      "pipeline_refine_ms": [15.417, 16.786, 15.920, 15.699, 15.985],
+      "pipeline_index_ms": [112.574, 113.578, 111.060, 112.212, 111.465],
+      "recovery_open_ms": [11.782, 14.946, 14.023, 12.505, 13.048],
+      "book_load_ms": [12.069, 9.999, 12.773, 12.477, 11.714],
+      "search_ms": [7.716, 7.512, 7.704, 8.015, 7.420],
+      "txt_open_ms": [11.155, 10.976, 11.239, 10.758, 10.891],
+      "first_slice_ms": [0.475, 0.678, 0.660, 0.507, 0.733],
+      "max_rss_bytes": [280117248, 279023616, 293269504, 295645184, 292679680]
+    },
+    "hundred_mib": {
+      "source_bytes": 104857600,
+      "source_chars": 61166960,
+      "indexed_chars": 5000000,
+      "truncated": true,
+      "chunks": 1221,
+      "tokens": 38,
+      "artifact_bytes": 17278265,
+      "pipeline_refine_ms": [79.057, 79.153, 78.443, 79.212, 82.431],
+      "pipeline_index_ms": [177.830, 178.592, 181.727, 177.420, 175.609],
+      "recovery_open_ms": [12.850, 14.261, 12.551, 12.582, 13.523],
+      "book_load_ms": [12.411, 12.007, 13.639, 13.251, 12.145],
+      "search_ms": [7.749, 7.477, 7.540, 7.854, 7.362],
+      "txt_open_ms": [103.108, 104.909, 102.323, 103.277, 103.848],
+      "first_slice_ms": [0.660, 0.897, 0.689, 0.655, 0.694],
+      "max_rss_bytes": [428969984, 426618880, 427909120, 429731840, 428941312]
+    }
+  }
+}

@@ -623,11 +623,11 @@ impl Scheduler {
     ///
     /// 排队中与运行中的都会被移除，同时腾出并发名额。返回是否找到过该书。
     pub fn cancel(&mut self, book: BookId) -> bool {
-        let before = self.pending.len() + self.running.len();
+        let before = self.pending.len() + self.running.len() + self.exhausted.len();
         self.pending.retain(|t| t.book != book);
         self.running.retain(|r| r.book != book);
         self.exhausted.retain(|e| e.book != book);
-        self.pending.len() + self.running.len() < before
+        self.pending.len() + self.running.len() + self.exhausted.len() < before
     }
 
     /// 手动重试一个已耗尽的任务：**清零失败次数**，以 `Refine` 重新排队。

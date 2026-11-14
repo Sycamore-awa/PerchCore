@@ -2,7 +2,7 @@
   "description": "Versioned canonical FFI contracts and runtime negotiation metadata.",
   "api": {
     "major": 1,
-    "minor": 4
+    "minor": 5
   },
   "methods": [
     {
@@ -58,7 +58,7 @@
                 "const": 1
               },
               "minor": {
-                "const": 4
+                "const": 5
               }
             },
             "required": [
@@ -160,7 +160,7 @@
         "additionalProperties": false
       },
       "result": {
-        "$ref": "urn:perchcore:api:v1.4:common#/$defs/ContextOpened"
+        "$ref": "urn:perchcore:api:v1.5:common#/$defs/ContextOpened"
       },
       "errors": [
         "FFI_BAD_ARGS",
@@ -190,7 +190,7 @@
         "additionalProperties": false
       },
       "result": {
-        "$ref": "urn:perchcore:api:v1.4:common#/$defs/ContextClosed"
+        "$ref": "urn:perchcore:api:v1.5:common#/$defs/ContextClosed"
       },
       "errors": [
         "FFI_BAD_ARGS",
@@ -198,6 +198,7 @@
       ],
       "notes": [
         "只能通过 perch_call 调用；重复关闭或未知 context 返回 closed:false 与全 0 released。",
+        "关闭先拒绝新调用，请求在途 pipeline 协作取消，并等待所有已接受调用退出后返回。",
         "关闭只释放内存对象，不删除源文件、pipeline 产物或状态文件。"
       ]
     },
@@ -205,7 +206,7 @@
       "name": "locator.validate",
       "summary": "校验 Locator 的结构与定位语义",
       "request": {
-        "$ref": "urn:perchcore:api:v1.4:common#/$defs/Locator"
+        "$ref": "urn:perchcore:api:v1.5:common#/$defs/Locator"
       },
       "result": {
         "type": "object",
@@ -345,7 +346,7 @@
         ]
       },
       "result": {
-        "$ref": "urn:perchcore:api:v1.4:common#/$defs/Refinement"
+        "$ref": "urn:perchcore:api:v1.5:common#/$defs/Refinement"
       },
       "errors": [
         "FFI_BAD_ARGS",
@@ -408,7 +409,7 @@
         ]
       },
       "result": {
-        "$ref": "urn:perchcore:api:v1.4:common#/$defs/BookOpened"
+        "$ref": "urn:perchcore:api:v1.5:common#/$defs/BookOpened"
       },
       "errors": [
         "FFI_BAD_ARGS",
@@ -448,7 +449,7 @@
         "additionalProperties": false
       },
       "result": {
-        "$ref": "urn:perchcore:api:v1.4:common#/$defs/BookOpened"
+        "$ref": "urn:perchcore:api:v1.5:common#/$defs/BookOpened"
       },
       "errors": [
         "FFI_BAD_ARGS",
@@ -506,7 +507,7 @@
           "hits": {
             "type": "array",
             "items": {
-              "$ref": "urn:perchcore:api:v1.4:common#/$defs/BookHit"
+              "$ref": "urn:perchcore:api:v1.5:common#/$defs/BookHit"
             }
           }
         },
@@ -559,7 +560,7 @@
         "additionalProperties": false
       },
       "result": {
-        "$ref": "urn:perchcore:api:v1.4:common#/$defs/BookSourceLocation"
+        "$ref": "urn:perchcore:api:v1.5:common#/$defs/BookSourceLocation"
       },
       "errors": [
         "FFI_BAD_ARGS",
@@ -797,7 +798,7 @@
         "type": "object",
         "properties": {
           "locator": {
-            "$ref": "urn:perchcore:api:v1.4:common#/$defs/Locator"
+            "$ref": "urn:perchcore:api:v1.5:common#/$defs/Locator"
           }
         },
         "required": [
@@ -829,7 +830,7 @@
             "description": "当前进程的对象句柄，0 有效；属于创建它的 context，不能当作指针、布尔值或持久化 ID。"
           },
           "locator": {
-            "$ref": "urn:perchcore:api:v1.4:common#/$defs/Locator"
+            "$ref": "urn:perchcore:api:v1.5:common#/$defs/Locator"
           }
         },
         "required": [
@@ -1127,7 +1128,7 @@
             "description": "产物根目录，一条管线单独拥有；按 book UUID 建子目录。"
           },
           "policy": {
-            "$ref": "urn:perchcore:api:v1.4:common#/$defs/Policy"
+            "$ref": "urn:perchcore:api:v1.5:common#/$defs/Policy"
           },
           "max_chars": {
             "type": "integer",
@@ -1161,7 +1162,7 @@
           "recovered": {
             "type": "array",
             "items": {
-              "$ref": "urn:perchcore:api:v1.4:common#/$defs/Recovered"
+              "$ref": "urn:perchcore:api:v1.5:common#/$defs/Recovered"
             }
           }
         },
@@ -1321,7 +1322,7 @@
             "description": "UTC Unix epoch 毫秒；省略取系统当前时间。"
           },
           "gate": {
-            "$ref": "urn:perchcore:api:v1.4:common#/$defs/Gate"
+            "$ref": "urn:perchcore:api:v1.5:common#/$defs/Gate"
           }
         },
         "required": [
@@ -1330,7 +1331,7 @@
         "additionalProperties": false
       },
       "result": {
-        "$ref": "urn:perchcore:api:v1.4:common#/$defs/PipelineStep"
+        "$ref": "urn:perchcore:api:v1.5:common#/$defs/PipelineStep"
       },
       "errors": [
         "FFI_BAD_ARGS",
@@ -1340,8 +1341,9 @@
         "PIPELINE_IO"
       ],
       "notes": [
-        "正常 outcome 有 idle/refined/indexed/failed/exhausted，字段依分支而异；failed 可退避重试，exhausted 须手动 retry。",
-        "存储 I/O 失败映射顶层 PIPELINE_IO，不返回 ioFailed 成功结果。执行期间持共享注册锁。"
+        "正常 outcome 有 idle/refined/indexed/cancelled/failed/exhausted，字段依分支而异；failed 可退避重试，exhausted 须手动 retry。",
+        "cancelled 表示任务已在安全检查点退出；单次文件读取、解析或索引构建不会在内部抢占。",
+        "存储 I/O 失败映射顶层 PIPELINE_IO，不返回 ioFailed 成功结果。执行期间持 pipeline 对象执行锁，不占根 Registry 锁。"
       ]
     },
     {
@@ -1369,7 +1371,7 @@
             "type": "boolean"
           },
           "stats": {
-            "$ref": "urn:perchcore:api:v1.4:common#/$defs/PipelineStats"
+            "$ref": "urn:perchcore:api:v1.5:common#/$defs/PipelineStats"
           }
         },
         "required": [
@@ -1385,6 +1387,55 @@
         "CONTEXT_HANDLE_MISMATCH"
       ],
       "notes": []
+    },
+    {
+      "name": "pipeline.progress",
+      "summary": "读取当前执行活动",
+      "request": {
+        "type": "object",
+        "properties": {
+          "handle": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 18446744073709551615,
+            "description": "当前进程的对象句柄，0 有效；属于创建它的 context，不能当作指针、布尔值或持久化 ID。"
+          }
+        },
+        "required": [
+          "handle"
+        ],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "active": {
+            "anyOf": [
+              {
+                "$ref": "urn:perchcore:api:v1.5:common#/$defs/PipelineActivity"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "active"
+        ],
+        "additionalProperties": false
+      },
+      "errors": [
+        "FFI_BAD_ARGS",
+        "PIPELINE_BAD_HANDLE",
+        "HANDLE_WRONG_KIND",
+        "CONTEXT_HANDLE_MISMATCH"
+      ],
+      "notes": [
+        "不取 pipeline 执行锁，可在同步 pipeline.step 运行期间由其他线程或 Dart 控制 isolate 轮询。",
+        "active:null 表示查询时没有已选中任务；checkpoint 是粗粒度子阶段，不是百分比或耗时估计。",
+        "cancelRequested 只表示取样时已登记取消，最终竞态仍以 pipeline.step 结果为准。"
+      ]
     },
     {
       "name": "pipeline.state",
@@ -1410,7 +1461,7 @@
         "additionalProperties": false
       },
       "result": {
-        "$ref": "urn:perchcore:api:v1.4:common#/$defs/PipelineState"
+        "$ref": "urn:perchcore:api:v1.5:common#/$defs/PipelineState"
       },
       "errors": [
         "FFI_BAD_ARGS",
@@ -1584,7 +1635,7 @@
         "CONTEXT_HANDLE_MISMATCH"
       ],
       "notes": [
-        "不删除源文件/产物；不抢占或中断已在执行的同步 step。"
+        "不删除源文件/产物；排队任务立即撤出，在途 step 收到信号后于下一个安全检查点返回 cancelled。"
       ]
     },
     {
@@ -1658,7 +1709,7 @@
         ]
       },
       "result": {
-        "$ref": "urn:perchcore:api:v1.4:common#/$defs/PdfInfo"
+        "$ref": "urn:perchcore:api:v1.5:common#/$defs/PdfInfo"
       },
       "errors": [
         "FFI_BAD_ARGS",
@@ -1706,7 +1757,7 @@
           "hits": {
             "type": "array",
             "items": {
-              "$ref": "urn:perchcore:api:v1.4:common#/$defs/IndexHit"
+              "$ref": "urn:perchcore:api:v1.5:common#/$defs/IndexHit"
             }
           }
         },
@@ -1770,7 +1821,7 @@
           "geometry": {
             "anyOf": [
               {
-                "$ref": "urn:perchcore:api:v1.4:common#/$defs/Geometry"
+                "$ref": "urn:perchcore:api:v1.5:common#/$defs/Geometry"
               },
               {
                 "type": "null"
@@ -1849,7 +1900,7 @@
           "local": {
             "type": "array",
             "items": {
-              "$ref": "urn:perchcore:api:v1.4:common#/$defs/Change"
+              "$ref": "urn:perchcore:api:v1.5:common#/$defs/Change"
             },
             "description": "缺省为空数组。",
             "default": []
@@ -1857,7 +1908,7 @@
           "remote": {
             "type": "array",
             "items": {
-              "$ref": "urn:perchcore:api:v1.4:common#/$defs/Change"
+              "$ref": "urn:perchcore:api:v1.5:common#/$defs/Change"
             },
             "description": "缺省为空数组。",
             "default": []
@@ -1872,11 +1923,11 @@
           "state": {
             "type": "array",
             "items": {
-              "$ref": "urn:perchcore:api:v1.4:common#/$defs/Change"
+              "$ref": "urn:perchcore:api:v1.5:common#/$defs/Change"
             }
           },
           "stats": {
-            "$ref": "urn:perchcore:api:v1.4:common#/$defs/MergeStats"
+            "$ref": "urn:perchcore:api:v1.5:common#/$defs/MergeStats"
           },
           "conflictRate": {
             "type": "number"
@@ -1922,7 +1973,7 @@
           "state": {
             "type": "array",
             "items": {
-              "$ref": "urn:perchcore:api:v1.4:common#/$defs/Change"
+              "$ref": "urn:perchcore:api:v1.5:common#/$defs/Change"
             },
             "description": "缺省为空数组。",
             "default": []
@@ -1955,7 +2006,7 @@
           "changes": {
             "type": "array",
             "items": {
-              "$ref": "urn:perchcore:api:v1.4:common#/$defs/Change"
+              "$ref": "urn:perchcore:api:v1.5:common#/$defs/Change"
             }
           },
           "nextCursor": {

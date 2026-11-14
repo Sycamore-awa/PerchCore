@@ -23,6 +23,18 @@ python3 tools/bench.py --samples epub2,long-line --stages open,index,query.hit,b
 
 `--samples`、`--stages` 和 `--clients` 使用逗号分隔。`--iterations` 为正整数，`--warmups` 可为零；CI 的少量重复只验证工具和正确性，不设耗时阈值。`--timeout-seconds` 默认 120，限制每个案例；失败案例在报告中标为 failed，工具最终返回非零退出码。
 
+## 真实阅读器大 TXT 冒烟
+
+[2026-11-14 Linux 报告](2026-11-14-linux-large-txt.md) 由同级 `PerchReader/tool/bench_large_txt.dart` 通过公开 Dart worker/service API 执行，覆盖指纹、pipeline 导入、worker 重启、Ready 恢复、书籍加载、高频词限量搜索、TXT 打开与首页切片。它是单机预热冒烟，不代替 BASE-02 的隔离 worker 分布。
+
+```sh
+cargo build -p perch-ffi --release
+cd ../PerchReader
+dart tool/bench_large_txt.dart 10 ../PerchCore/target/release/libperch_ffi.so
+# 扩展到 100 MiB；默认仍只索引前 5,000,000 字符
+dart tool/bench_large_txt.dart 100 ../PerchCore/target/release/libperch_ffi.so
+```
+
 首次编译和依赖缓存单独记录：
 
 ```sh
@@ -52,7 +64,7 @@ python3 tools/bench.py --skip-build --target-dir target/base02/clean-target
 | Rust slice | TxtDocument 对末尾至多 800 scalar 的借用切片 | 文档提前打开；不分配跨语言结果 |
 | Rust pipeline | PathStore 创建、Registered 状态落盘、调度精修/索引、产物与 Ready 状态落盘 | UUID 固定，每次使用独立子目录；产物重开校验在计时后 |
 | ctypes book.open / jobs.refine / txt.analyze | Python bytes.hex、JSON 编码、C ABI、返回复制与 JSON 解码、Rust 字符串释放 | 原书字节提前读入；打开的句柄在计时后关闭 |
-| ctypes book.load / book.search | 产物路径加载 / 对已打开句柄搜索，含 JSON 传输 | 产物或搜索句柄提前准备；search limit=20，核心仍先计算全部命中 |
+| ctypes book.load / book.search | 产物路径加载 / 对已打开句柄搜索，含 JSON 传输 | 产物或搜索句柄提前准备；search limit=20，核心达限后停止扫描后续分片 |
 | ctypes txt.open / txt.slice / pdf.analyze | 路径打开 / 末尾窗口切片 / PDF 路径解析，含 JSON 传输 | slice 句柄提前打开；校验和句柄关闭在计时后 |
 | ctypes txt.slice.concurrent | 向两个工作线程提交同一句柄的切片并等待二者完成 | 两个请求为一轮；另记录每个请求自身耗时；轮耗时包含线程池调度 |
 | Dart book.open / txt.analyze | 调用公共 openBook / analyzeText，含绑定内的十六进制编码、JSON 和 FFI | AOT 编译、库加载、读源文件在计时外；关闭在计时后 |

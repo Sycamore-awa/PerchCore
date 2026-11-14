@@ -372,15 +372,6 @@ impl SourceMap {
         self.indexed_chars += chars;
     }
 
-    pub(crate) fn truncate_txt(&mut self, chars: u64, bytes: u64) {
-        self.runs.retain(|run| run.start_char < chars);
-        if let Some(last) = self.runs.last_mut() {
-            last.end_char = chars;
-            last.end_byte = bytes;
-        }
-        self.indexed_chars = chars;
-    }
-
     fn validate(&self, book: &BookText, positions: &TextPositions) -> Result<(), SourceMapError> {
         let invalid = |reason: &str| SourceMapError::Invalid(reason.to_owned());
         if self.version != SOURCE_MAP_VERSION {

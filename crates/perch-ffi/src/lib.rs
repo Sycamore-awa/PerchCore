@@ -47,8 +47,8 @@ const CORE_VERSION: &str = env!("CARGO_PKG_VERSION");
 const ABI_VERSION: u16 = 1;
 /// JSON 契约 major：破坏现有方法才升级。
 const API_MAJOR: u16 = 1;
-/// JSON 契约 minor：搜索命中到 TXT/EPUB 源文本的精确区间映射。
-const API_MINOR: u16 = 4;
+/// JSON 契约 minor：pipeline 协作取消、活动快照与 context 排空语义。
+const API_MINOR: u16 = 5;
 /// 旧 `perch_call` 使用的隐式上下文；不暴露给调用方，也不能销毁。
 const LEGACY_CONTEXT: u64 = 0;
 
@@ -85,7 +85,184 @@ struct OpenBook {
 
 type SharedBook = std::sync::Arc<OpenBook>;
 type SharedTxt = std::sync::Arc<perch_txt::TxtDocument>;
-type SharedPipeline = std::sync::Arc<std::sync::Mutex<perch_jobs::Pipeline<perch_jobs::PathStore>>>;
+
+#[derive(Clone, Copy)]
+struct PipelineActivity {
+    book: perch_model::BookId,
+    stage: perch_pipeline::Stage,
+    checkpoint: perch_jobs::PipelineCheckpoint,
+}
+
+struct PipelineObject {
+    inner: std::sync::Mutex<perch_jobs::Pipeline<perch_jobs::PathStore>>,
+    cancellations: std::sync::Mutex<std::collections::HashSet<perch_model::BookId>>,
+    activity: std::sync::Mutex<Option<PipelineActivity>>,
+    stopping: std::sync::atomic::AtomicBool,
+}
+
+impl PipelineObject {
+    fn new(pipeline: perch_jobs::Pipeline<perch_jobs::PathStore>) -> Self {
+        Self {
+            inner: std::sync::Mutex::new(pipeline),
+            cancellations: std::sync::Mutex::new(std::collections::HashSet::new()),
+            activity: std::sync::Mutex::new(None),
+            stopping: std::sync::atomic::AtomicBool::new(false),
+        }
+    }
+
+    fn set_activity(
+        &self,
+        book: perch_model::BookId,
+        stage: perch_pipeline::Stage,
+        checkpoint: perch_jobs::PipelineCheckpoint,
+    ) {
+        *self.lock_activity() = Some(PipelineActivity {
+            book,
+            stage,
+            checkpoint,
+        });
+    }
+
+    fn clear_activity(&self) {
+        *self.lock_activity() = None;
+    }
+
+    fn activity(&self) -> Option<PipelineActivity> {
+        *self.lock_activity()
+    }
+
+    fn request_cancel(&self, book: perch_model::BookId) {
+        self.lock_cancellations().insert(book);
+    }
+
+    fn clear_cancel(&self, book: perch_model::BookId) {
+        self.lock_cancellations().remove(&book);
+    }
+
+    fn is_cancel_requested(&self, book: perch_model::BookId) -> bool {
+        self.is_stopping() || self.lock_cancellations().contains(&book)
+    }
+
+    fn request_stop(&self) {
+        self.stopping
+            .store(true, std::sync::atomic::Ordering::Release);
+    }
+
+    fn is_stopping(&self) -> bool {
+        self.stopping.load(std::sync::atomic::Ordering::Acquire)
+    }
+
+    fn lock_cancellations(
+        &self,
+    ) -> std::sync::MutexGuard<'_, std::collections::HashSet<perch_model::BookId>> {
+        match self.cancellations.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => poisoned.into_inner(),
+        }
+    }
+
+    fn lock_activity(&self) -> std::sync::MutexGuard<'_, Option<PipelineActivity>> {
+        match self.activity.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => poisoned.into_inner(),
+        }
+    }
+
+    /// Pending work can be removed immediately. If a step owns the execution lock,
+    /// leave the signal in place for its next cooperative checkpoint.
+    fn cancel_if_idle(&self, book: perch_model::BookId) {
+        match self.inner.try_lock() {
+            Ok(mut pipeline) => {
+                pipeline.cancel(book);
+            }
+            Err(std::sync::TryLockError::Poisoned(poisoned)) => {
+                poisoned.into_inner().cancel(book);
+            }
+            Err(std::sync::TryLockError::WouldBlock) => return,
+        }
+        self.clear_cancel(book);
+    }
+}
+
+struct PipelineActivityGuard<'a> {
+    pipeline: &'a PipelineObject,
+    armed: bool,
+}
+
+impl<'a> PipelineActivityGuard<'a> {
+    fn new(pipeline: &'a PipelineObject) -> Self {
+        Self {
+            pipeline,
+            armed: true,
+        }
+    }
+
+    fn clear(&mut self) {
+        self.pipeline.clear_activity();
+        self.armed = false;
+    }
+}
+
+impl Drop for PipelineActivityGuard<'_> {
+    fn drop(&mut self) {
+        if self.armed {
+            self.pipeline.clear_activity();
+        }
+    }
+}
+
+type SharedPipeline = std::sync::Arc<PipelineObject>;
+
+#[derive(Default)]
+struct ContextLifetime {
+    active_calls: std::sync::Mutex<usize>,
+    idle: std::sync::Condvar,
+}
+
+impl ContextLifetime {
+    fn acquire(self: &std::sync::Arc<Self>) -> ContextCallLease {
+        let mut active_calls = match self.active_calls.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        *active_calls = active_calls.saturating_add(1);
+        drop(active_calls);
+        ContextCallLease {
+            lifetime: std::sync::Arc::clone(self),
+        }
+    }
+
+    fn wait_for_idle(&self) {
+        let mut active_calls = match self.active_calls.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        while *active_calls != 0 {
+            active_calls = match self.idle.wait(active_calls) {
+                Ok(guard) => guard,
+                Err(poisoned) => poisoned.into_inner(),
+            };
+        }
+    }
+}
+
+struct ContextCallLease {
+    lifetime: std::sync::Arc<ContextLifetime>,
+}
+
+impl Drop for ContextCallLease {
+    fn drop(&mut self) {
+        let mut active_calls = match self.lifetime.active_calls.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        debug_assert!(*active_calls > 0);
+        *active_calls = active_calls.saturating_sub(1);
+        if *active_calls == 0 {
+            self.lifetime.idle.notify_all();
+        }
+    }
+}
 
 /// 句柄表里的一类东西。
 ///
@@ -127,6 +304,7 @@ struct ContextRegistry {
     txts: usize,
     /// 当前打开的管线句柄数。
     pipelines: usize,
+    lifetime: std::sync::Arc<ContextLifetime>,
 }
 
 #[derive(Debug, Default, PartialEq, Eq)]
@@ -139,6 +317,21 @@ struct Released {
 struct ClosedContext {
     released: Released,
     objects: Vec<OpenDoc>,
+    lifetime: std::sync::Arc<ContextLifetime>,
+}
+
+impl ClosedContext {
+    fn stop_pipelines(&self) {
+        for object in &self.objects {
+            if let OpenDoc::Pipeline(pipeline) = object {
+                pipeline.request_stop();
+            }
+        }
+    }
+
+    fn wait_for_idle(&self) {
+        self.lifetime.wait_for_idle();
+    }
 }
 
 struct Registry {
@@ -242,7 +435,18 @@ impl Registry {
                 pipelines: closed.pipelines,
             },
             objects: closed.open.into_values().collect(),
+            lifetime: closed.lifetime,
         }))
+    }
+
+    fn begin_call(&self, context: u64) -> Result<ContextCallLease, FfiError> {
+        if context == LEGACY_CONTEXT {
+            return Err(FfiError::new(
+                "CONTEXT_LEGACY",
+                "legacy 上下文 0 不需要调用租约",
+            ));
+        }
+        Ok(self.context(context)?.lifetime.acquire())
     }
 
     fn ensure_owner(&self, context: u64, handle: u64) -> Result<(), FfiError> {
@@ -414,7 +618,7 @@ impl Registry {
 fn lock_pipeline(
     pipeline: &SharedPipeline,
 ) -> std::sync::MutexGuard<'_, perch_jobs::Pipeline<perch_jobs::PathStore>> {
-    match pipeline.lock() {
+    match pipeline.inner.lock() {
         Ok(guard) => guard,
         Err(poisoned) => poisoned.into_inner(),
     }
@@ -465,15 +669,18 @@ fn dispatch_in_context(context: u64, method: &str, args: &str) -> Value {
 }
 
 fn call(context: u64, method: &str, args: &str) -> Result<Value, FfiError> {
-    if context != LEGACY_CONTEXT {
-        registry().ensure_context(context)?;
+    let _call_lease = if context != LEGACY_CONTEXT {
+        let lease = registry().begin_call(context)?;
         if matches!(method, "context.open" | "context.close") {
             return Err(FfiError::new(
                 "CONTEXT_METHOD_SCOPE",
                 format!("{method} 只能通过 perch_call 调用"),
             ));
         }
-    }
+        Some(lease)
+    } else {
+        None
+    };
     let args: Value = if args.trim().is_empty() {
         json!({})
     } else {
@@ -513,6 +720,11 @@ fn call(context: u64, method: &str, args: &str) -> Result<Value, FfiError> {
             let closed = registry().close_context(target)?;
             match closed {
                 Some(closed) => {
+                    // Linearize close at registry removal: later calls fail immediately.
+                    // A running pipeline observes the stop flag at its next cooperative
+                    // checkpoint, while all other accepted calls are allowed to finish.
+                    closed.stop_pipelines();
+                    closed.wait_for_idle();
                     let released = closed.released;
                     // 大对象的最后一个 Arc 可能在这里释放；此时根锁已经归还。
                     drop(closed.objects);
@@ -563,7 +775,7 @@ fn call(context: u64, method: &str, args: &str) -> Result<Value, FfiError> {
                 .unwrap_or(perch_jobs::ExtractOptions::default().max_chars);
             let format = format_arg(&args)?.unwrap_or_else(|| perch_jobs::sniff_format(&bytes));
             let refinement =
-                perch_jobs::refine(&bytes, format, perch_jobs::ExtractOptions { max_chars })
+                perch_jobs::refine_owned(bytes, format, perch_jobs::ExtractOptions { max_chars })
                     .map_err(|error| FfiError::new(error.code(), error.to_string()))?;
             serde_json::to_value(&refinement).map_err(|error| FfiError::bad_args(error.to_string()))
         }
@@ -576,8 +788,8 @@ fn call(context: u64, method: &str, args: &str) -> Result<Value, FfiError> {
                 .and_then(Value::as_u64)
                 .unwrap_or(perch_index::DEFAULT_CHUNK_CHARS);
             let format = format_arg(&args)?.unwrap_or_else(|| perch_jobs::sniff_format(&bytes));
-            let text = perch_jobs::extract_text_with_source_map(
-                &bytes,
+            let text = perch_jobs::extract_text_with_source_map_owned(
+                bytes,
                 format,
                 perch_jobs::ExtractOptions::default(),
             )
@@ -643,9 +855,8 @@ fn call(context: u64, method: &str, args: &str) -> Result<Value, FfiError> {
             let book = registry().book(context, handle)?;
             let hits: Vec<Value> = book
                 .index
-                .search(query)
+                .search_limited(query, limit)
                 .into_iter()
-                .take(limit)
                 .map(|hit| {
                     let locator = perch_jobs::locate_hit(book.text.book_text(), &hit);
                     json!({
@@ -858,7 +1069,7 @@ fn call(context: u64, method: &str, args: &str) -> Result<Value, FfiError> {
                 chunk_chars,
             )
             .map_err(|error| FfiError::new("PIPELINE_POLICY", error.to_string()))?;
-            let pipeline = std::sync::Arc::new(std::sync::Mutex::new(pipeline));
+            let pipeline = std::sync::Arc::new(PipelineObject::new(pipeline));
             let handle = registry().insert_pipeline(context, std::sync::Arc::clone(&pipeline))?;
             Ok(json!({ "handle": handle, "recovered": recovered }))
         }
@@ -876,9 +1087,10 @@ fn call(context: u64, method: &str, args: &str) -> Result<Value, FfiError> {
             let priority = priority_arg(&args)?;
 
             let pipeline = registry().pipeline(context, handle)?;
-            let mut pipeline = lock_pipeline(&pipeline);
-            pipeline.store_mut().register(book, path, format);
-            let recorded = pipeline.store().state(book);
+            pipeline.clear_cancel(book);
+            let mut inner = lock_pipeline(&pipeline);
+            inner.store_mut().register(book, path, format);
+            let recorded = inner.store().state(book);
             let state = match &recorded {
                 Some(item) => item.state,
                 None => state_arg(&args)?,
@@ -886,7 +1098,7 @@ fn call(context: u64, method: &str, args: &str) -> Result<Value, FfiError> {
             let attempts = recorded.as_ref().map_or(0, |item| item.attempts);
             let stage = recorded.as_ref().and_then(|item| item.failed_stage);
             let retry_at = recorded.as_ref().and_then(|item| item.retry_at_ms);
-            let outcome = pipeline.restore(book, state, priority, attempts, stage, retry_at);
+            let outcome = inner.restore(book, state, priority, attempts, stage, retry_at);
             Ok(json!({
                 "outcome": enqueue_outcome_str(outcome),
                 "stage": enqueue_outcome_stage(outcome),
@@ -905,12 +1117,28 @@ fn call(context: u64, method: &str, args: &str) -> Result<Value, FfiError> {
             let gate = gate_arg(&args)?;
 
             let pipeline = registry().pipeline(context, handle)?;
-            let mut pipeline = lock_pipeline(&pipeline);
-            let outcome = pipeline.step(now, gate);
+            let mut inner = lock_pipeline(&pipeline);
+            // Declare after `inner` so unwind/early-return drops the activity
+            // guard first and clears the snapshot before releasing execution.
+            let mut activity_guard = PipelineActivityGuard::new(&pipeline);
+            let outcome = inner.step_observable(
+                now,
+                gate,
+                |book| pipeline.is_cancel_requested(book),
+                |book, stage, checkpoint| pipeline.set_activity(book, stage, checkpoint),
+            );
             if let perch_jobs::StepOutcome::IoFailed { error, .. } = &outcome {
                 return Err(FfiError::new("PIPELINE_IO", error.clone()));
             }
-            let stats = pipeline.scheduler().stats();
+            let stats = inner.scheduler().stats();
+            // Clear while still owning the execution lock. Otherwise a second
+            // step could publish its activity after `drop(inner)` and then be
+            // erased by this call's cleanup guard.
+            activity_guard.clear();
+            drop(inner);
+            if let Some(book) = step_outcome_book(&outcome) {
+                pipeline.clear_cancel(book);
+            }
             Ok(step_outcome_json(&outcome, stats))
         }
 
@@ -924,6 +1152,22 @@ fn call(context: u64, method: &str, args: &str) -> Result<Value, FfiError> {
                 "idle": pipeline.is_idle(),
                 "stats": stats_json(stats),
             }))
+        }
+
+        // In-flight activity uses a separate lock, so callers can poll it while
+        // pipeline.step owns the execution lock.
+        "pipeline.progress" => {
+            let handle = required_u64(&args, "handle")?;
+            let pipeline = registry().pipeline(context, handle)?;
+            let active = pipeline.activity().map(|activity| {
+                json!({
+                    "book": activity.book,
+                    "stage": activity.stage.as_str(),
+                    "checkpoint": pipeline_checkpoint_str(activity.checkpoint),
+                    "cancelRequested": pipeline.is_cancel_requested(activity.book),
+                })
+            });
+            Ok(json!({ "active": active }))
         }
 
         // 单本书的落盘状态（书架卡片按需查）。
@@ -962,8 +1206,9 @@ fn call(context: u64, method: &str, args: &str) -> Result<Value, FfiError> {
             let book = book_arg(&args)?;
             let priority = priority_arg(&args)?;
             let pipeline = registry().pipeline(context, handle)?;
-            let mut pipeline = lock_pipeline(&pipeline);
-            let revived = pipeline
+            pipeline.clear_cancel(book);
+            let mut inner = lock_pipeline(&pipeline);
+            let revived = inner
                 .revive(book, priority)
                 .map_err(|error| FfiError::new("PIPELINE_IO", error))?;
             Ok(json!({ "retried": revived }))
@@ -974,8 +1219,8 @@ fn call(context: u64, method: &str, args: &str) -> Result<Value, FfiError> {
             let handle = required_u64(&args, "handle")?;
             let book = book_arg(&args)?;
             let pipeline = registry().pipeline(context, handle)?;
-            let mut pipeline = lock_pipeline(&pipeline);
-            pipeline.cancel(book);
+            pipeline.request_cancel(book);
+            pipeline.cancel_if_idle(book);
             Ok(json!({ "cancelled": true }))
         }
 
@@ -1334,6 +1579,32 @@ fn stats_json(stats: perch_pipeline::Stats) -> Value {
     })
 }
 
+fn pipeline_checkpoint_str(checkpoint: perch_jobs::PipelineCheckpoint) -> &'static str {
+    match checkpoint {
+        perch_jobs::PipelineCheckpoint::Preparing => "preparing",
+        perch_jobs::PipelineCheckpoint::ReadingSource => "readingSource",
+        perch_jobs::PipelineCheckpoint::ResolvingFormat => "resolvingFormat",
+        perch_jobs::PipelineCheckpoint::Refining => "refining",
+        perch_jobs::PipelineCheckpoint::SavingRefinement => "savingRefinement",
+        perch_jobs::PipelineCheckpoint::ExtractingText => "extractingText",
+        perch_jobs::PipelineCheckpoint::BuildingIndex => "buildingIndex",
+        perch_jobs::PipelineCheckpoint::SavingIndex => "savingIndex",
+        perch_jobs::PipelineCheckpoint::Committing => "committing",
+    }
+}
+
+fn step_outcome_book(outcome: &perch_jobs::StepOutcome) -> Option<perch_model::BookId> {
+    match outcome {
+        perch_jobs::StepOutcome::Idle => None,
+        perch_jobs::StepOutcome::Refined { book }
+        | perch_jobs::StepOutcome::Indexed { book, .. }
+        | perch_jobs::StepOutcome::Cancelled { book, .. }
+        | perch_jobs::StepOutcome::Failed { book, .. }
+        | perch_jobs::StepOutcome::Exhausted { book, .. }
+        | perch_jobs::StepOutcome::IoFailed { book, .. } => Some(*book),
+    }
+}
+
 /// 一次 `step` 的结果（形状复用 [`perch_jobs::StepOutcome`]，不另立一套）。
 fn step_outcome_json(outcome: &perch_jobs::StepOutcome, stats: perch_pipeline::Stats) -> Value {
     let mut value = match outcome {
@@ -1353,6 +1624,11 @@ fn step_outcome_json(outcome: &perch_jobs::StepOutcome, stats: perch_pipeline::S
             "stage": "index",
             "chunks": chunks,
             "tokens": tokens,
+        }),
+        perch_jobs::StepOutcome::Cancelled { book, stage } => json!({
+            "outcome": "cancelled",
+            "book": book,
+            "stage": stage.as_str(),
         }),
         // ⚠️ 字段名用 `reason` 而不是 `error`：`{"error": {code, message}}` 是 FFI 的
         // **错误通道**（Dart 的 `invoke` 见到 `error.code` 就抛异常）。业务字段重名
@@ -2556,6 +2832,34 @@ mod tests {
     }
 
     #[test]
+    fn book_search_applies_limit_inside_the_index_query() {
+        let _serial = serial();
+        let context = ContextGuard::open();
+        let opened = call_ok_in(
+            context.id(),
+            "book.open",
+            &json!({
+                "bytes_hex": hex("文字".repeat(20_000).as_bytes()),
+                "format": "txt",
+                "chunk_chars": 64,
+            })
+            .to_string(),
+        );
+        let limited = call_ok_in(
+            context.id(),
+            "book.search",
+            &json!({ "handle": opened["handle"], "query": "文字", "limit": 20 }).to_string(),
+        );
+        assert_eq!(limited["hits"].as_array().unwrap().len(), 20);
+        let zero = call_ok_in(
+            context.id(),
+            "book.search",
+            &json!({ "handle": opened["handle"], "query": "文字", "limit": 0 }).to_string(),
+        );
+        assert!(zero["hits"].as_array().unwrap().is_empty());
+    }
+
+    #[test]
     fn closed_handle_is_rejected_not_misused() {
         let _serial = serial();
         let handle = open_book();
@@ -3198,6 +3502,196 @@ mod tests {
         drop(shared);
         std::fs::remove_dir_all(pipeline_dir).ok();
         std::fs::remove_dir_all(txt_path.parent().unwrap()).ok();
+    }
+
+    #[test]
+    fn context_close_stops_pipeline_and_waits_for_accepted_calls() {
+        let _serial = serial();
+        let dir = pipeline_dirs("context-close-drain");
+        let book = perch_model::BookId::new();
+        let book_path = dir.join("books/close.txt");
+        std::fs::write(&book_path, "关闭时取消的正文").unwrap();
+        let context = ContextGuard::open();
+        let opened = call_ok_in(
+            context.id(),
+            "pipeline.open",
+            &json!({ "out_dir": dir.join("out").to_string_lossy() }).to_string(),
+        );
+        let handle = opened["handle"].as_u64().unwrap();
+        call_ok_in(
+            context.id(),
+            "pipeline.enqueue",
+            &json!({
+                "handle": handle,
+                "book": book,
+                "path": book_path.to_string_lossy(),
+                "format": "txt",
+            })
+            .to_string(),
+        );
+
+        let shared = registry().pipeline(context.id(), handle).unwrap();
+        let held = lock_pipeline(&shared);
+        let (step_tx, step_rx) = std::sync::mpsc::channel();
+        let step_context = context.id();
+        let step_thread = std::thread::spawn(move || {
+            let value = dispatch_in_context(
+                step_context,
+                "pipeline.step",
+                &json!({ "handle": handle, "now_ms": 0 }).to_string(),
+            );
+            step_tx.send(value).unwrap();
+        });
+
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+        while std::sync::Arc::strong_count(&shared) < 3 {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "pipeline.step 没有取得对象租约"
+            );
+            std::thread::yield_now();
+        }
+
+        let (close_tx, close_rx) = std::sync::mpsc::channel();
+        let close_context = context.id();
+        let close_thread = std::thread::spawn(move || {
+            close_tx
+                .send(dispatch(
+                    "context.close",
+                    &json!({ "context": close_context }).to_string(),
+                ))
+                .unwrap();
+        });
+
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+        while !shared.is_stopping() {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "context.close 没有请求 pipeline 停止"
+            );
+            std::thread::yield_now();
+        }
+        let rejected = dispatch_in_context(context.id(), "version", "{}");
+        assert_eq!(rejected["error"]["code"], "CONTEXT_BAD_HANDLE");
+        assert!(
+            close_rx
+                .recv_timeout(std::time::Duration::from_millis(50))
+                .is_err(),
+            "context.close 不应在已接受的 step 退出前返回"
+        );
+
+        drop(held);
+        let step = step_rx
+            .recv_timeout(std::time::Duration::from_secs(2))
+            .expect("管线没有观察到 context 关闭信号");
+        assert_eq!(step["outcome"], "cancelled");
+        assert_eq!(step["book"], book.to_string());
+        let closed = close_rx
+            .recv_timeout(std::time::Duration::from_secs(2))
+            .expect("context.close 没有在已接受调用退出后返回");
+        assert_eq!(closed["closed"], true);
+        assert_eq!(closed["released"]["pipelines"], 1);
+
+        step_thread.join().unwrap();
+        close_thread.join().unwrap();
+        drop(shared);
+        std::fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn pipeline_cancel_does_not_wait_for_execution_lock_and_step_observes_it() {
+        let _serial = serial();
+        let dir = pipeline_dirs("cooperative-cancel");
+        let book = perch_model::BookId::new();
+        let book_path = dir.join("books/cancel.txt");
+        std::fs::write(&book_path, "第一章\n等待取消的正文").unwrap();
+        let pipeline = open_pipeline(&dir);
+        call_ok(
+            "pipeline.enqueue",
+            &json!({
+                "handle": pipeline.0,
+                "book": book,
+                "path": book_path.to_string_lossy(),
+                "format": "txt",
+            })
+            .to_string(),
+        );
+
+        let shared = registry().pipeline(LEGACY_CONTEXT, pipeline.0).unwrap();
+        let held = lock_pipeline(&shared);
+        shared.set_activity(
+            book,
+            perch_pipeline::Stage::Refine,
+            perch_jobs::PipelineCheckpoint::ReadingSource,
+        );
+        let progress = call_ok(
+            "pipeline.progress",
+            &json!({ "handle": pipeline.0 }).to_string(),
+        );
+        assert_eq!(progress["active"]["book"], book.to_string());
+        assert_eq!(progress["active"]["stage"], "refine");
+        assert_eq!(progress["active"]["checkpoint"], "readingSource");
+        assert_eq!(progress["active"]["cancelRequested"], false);
+        let (cancel_tx, cancel_rx) = std::sync::mpsc::channel();
+        let handle = pipeline.0;
+        let cancel_thread = std::thread::spawn(move || {
+            cancel_tx
+                .send(dispatch(
+                    "pipeline.cancel",
+                    &json!({ "handle": handle, "book": book }).to_string(),
+                ))
+                .unwrap();
+        });
+        let cancelled = cancel_rx
+            .recv_timeout(std::time::Duration::from_secs(2))
+            .expect("pipeline.cancel 被执行锁阻塞");
+        assert_eq!(cancelled["cancelled"], true);
+        let cancelling = call_ok(
+            "pipeline.progress",
+            &json!({ "handle": pipeline.0 }).to_string(),
+        );
+        assert_eq!(cancelling["active"]["cancelRequested"], true);
+
+        drop(held);
+        let outcome = step_pipeline(pipeline.0, 0);
+        assert_eq!(outcome["outcome"], "cancelled");
+        assert_eq!(outcome["book"], book.to_string());
+        assert_eq!(outcome["stage"], "refine");
+        assert_eq!(outcome["stats"]["inFlight"], 0);
+        let idle_progress = call_ok(
+            "pipeline.progress",
+            &json!({ "handle": pipeline.0 }).to_string(),
+        );
+        assert!(idle_progress["active"].is_null());
+
+        // A completed step's RAII fallback must not erase the next step's snapshot.
+        let mut completed = PipelineActivityGuard::new(&shared);
+        shared.set_activity(
+            book,
+            perch_pipeline::Stage::Refine,
+            perch_jobs::PipelineCheckpoint::Committing,
+        );
+        completed.clear();
+        shared.set_activity(
+            book,
+            perch_pipeline::Stage::Index,
+            perch_jobs::PipelineCheckpoint::BuildingIndex,
+        );
+        drop(completed);
+        assert!(matches!(
+            shared.activity(),
+            Some(PipelineActivity {
+                stage: perch_pipeline::Stage::Index,
+                checkpoint: perch_jobs::PipelineCheckpoint::BuildingIndex,
+                ..
+            })
+        ));
+        shared.clear_activity();
+
+        cancel_thread.join().unwrap();
+        drop(shared);
+        drop(pipeline);
+        std::fs::remove_dir_all(dir).ok();
     }
 
     #[test]

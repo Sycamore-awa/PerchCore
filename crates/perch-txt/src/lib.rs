@@ -132,6 +132,15 @@ pub fn decode(bytes: &[u8]) -> DecodedText {
     DecodedText::from_detected(detect_and_decode(bytes))
 }
 
+/// 探测编码并解码一个可移动的输入缓冲区。
+///
+/// 对无 BOM 的合法 UTF-8，这会直接接管 `Vec<u8>` 的分配并变成
+/// `String`，避免大 TXT 在读取缓冲区之外再同时分配一份全文拷贝。
+/// 其余编码的探测和替换语义与 [`decode`] 完全相同。
+pub fn decode_owned(bytes: Vec<u8>) -> DecodedText {
+    DecodedText::from_detected(detect_and_decode_owned(bytes))
+}
+
 /// 一个纯文本文档。
 pub struct TxtDocument {
     text: String,
@@ -149,7 +158,16 @@ impl TxtDocument {
     /// 读取失败时返回 [`std::io::Error`]。
     pub fn open(path: impl AsRef<std::path::Path>) -> Result<Self, std::io::Error> {
         let bytes = std::fs::read(path)?;
-        Ok(Self::from_bytes(&bytes))
+        let source_bytes = bytes.len();
+        let (text, encoding, certain_encoding, had_decode_errors) =
+            decode_owned(bytes).into_parts();
+        Ok(Self::assemble(
+            text,
+            encoding,
+            certain_encoding,
+            source_bytes,
+            had_decode_errors,
+        ))
     }
 
     /// 由字节构造：先探测编码，再解码，再建索引。
@@ -510,6 +528,68 @@ fn detect_and_decode(bytes: &[u8]) -> Detected {
     }
 }
 
+/// [`detect_and_decode`] 的所有权版本；合法 UTF-8 可以复用输入分配。
+fn detect_and_decode_owned(bytes: Vec<u8>) -> Detected {
+    // UTF-8 BOM 仍要像 encoding_rs 一样不暴露给正文。只有整个缓冲区
+    // 都是合法 UTF-8 时才走零拷贝；BOM 后若有非法序列，继续使用
+    // encoding_rs 的 U+FFFD 替换语义。
+    if bytes.starts_with(b"\xef\xbb\xbf") {
+        match String::from_utf8(bytes) {
+            Ok(mut text) => {
+                text.drain(..3);
+                return Detected {
+                    text,
+                    encoding: encoding_rs::UTF_8.name(),
+                    certain: true,
+                    had_errors: false,
+                };
+            }
+            Err(error) => {
+                let bytes = error.into_bytes();
+                let (text, _, had_errors) = encoding_rs::UTF_8.decode(&bytes);
+                return Detected {
+                    text: text.into_owned(),
+                    encoding: encoding_rs::UTF_8.name(),
+                    certain: true,
+                    had_errors,
+                };
+            }
+        }
+    }
+
+    match String::from_utf8(bytes) {
+        Ok(text) => Detected {
+            text,
+            encoding: encoding_rs::UTF_8.name(),
+            certain: true,
+            had_errors: false,
+        },
+        Err(error) => {
+            let bytes = error.into_bytes();
+            if let Some((encoding, _)) = Encoding::for_bom(&bytes) {
+                let (text, _, had_errors) = encoding.decode(&bytes);
+                return Detected {
+                    text: text.into_owned(),
+                    encoding: encoding.name(),
+                    certain: true,
+                    had_errors,
+                };
+            }
+            let mut detector =
+                chardetng::EncodingDetector::new(chardetng::Iso2022JpDetection::Deny);
+            detector.feed(&bytes, true);
+            let encoding = detector.guess(None, chardetng::Utf8Detection::Allow);
+            let (text, _, had_errors) = encoding.decode(&bytes);
+            Detected {
+                text: text.into_owned(),
+                encoding: encoding.name(),
+                certain: false,
+                had_errors,
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -539,6 +619,19 @@ mod tests {
         assert_eq!(doc.text(), "带 BOM 的文本", "BOM 不应出现在正文里");
         assert_eq!(doc.meta().encoding, "UTF-8");
         assert!(doc.meta().certain_encoding);
+    }
+
+    #[test]
+    fn owned_decode_matches_borrowed_decode_for_supported_paths() {
+        let original = "中文测试，owned decode 📖".repeat(20);
+        let mut bom = UTF8_BOM.to_vec();
+        bom.extend_from_slice(original.as_bytes());
+        let (gbk, _, _) = encoding_rs::GBK.encode(&original);
+        for bytes in [original.as_bytes().to_vec(), bom, gbk.into_owned()] {
+            let borrowed = decode(&bytes);
+            let owned = decode_owned(bytes);
+            assert_eq!(owned, borrowed);
+        }
     }
 
     #[test]
