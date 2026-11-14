@@ -1,3 +1,6 @@
+# Keep source and metadata hashes stable across Windows, macOS and Linux.
+* text=auto eol=lf
+
 # The corpus hashes describe exact bytes, including BOMs and mixed line endings.
 examples/data/corpus/inputs/** -text
 examples/data/corpus/texts/** -text

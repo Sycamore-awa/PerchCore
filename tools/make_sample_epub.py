@@ -167,7 +167,10 @@ def build(destination: Path) -> None:
     destination.write_bytes(epub_bytes(entries))
 
     size = destination.stat().st_size
-    print(f"已生成 {destination}（{size} 字节，{len(CHAPTERS)} 章）")
+    # Windows GitHub runners may expose a legacy cp1252 console. Keep this
+    # status line ASCII so building a deterministic fixture never depends on
+    # the terminal encoding.
+    print(f"Generated {destination} ({size} bytes, {len(CHAPTERS)} chapters)")
 
 
 if __name__ == "__main__":
