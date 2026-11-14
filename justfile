@@ -65,6 +65,9 @@ bench-all corpus="examples/data/corpus":
 bench-source-map corpus="examples/data/corpus": core-lib
     python3 tools/bench_source_map.py --corpus {{corpus}}
 
+bench-recovery:
+    python3 tools/bench_recovery.py
+
 bench-performance scale="64":
     python3 tools/make_corpus.py --profile performance --scale {{scale}} --output target/performance-corpus
     python3 tools/bench.py --corpus target/performance-corpus --output target/base02/performance.json

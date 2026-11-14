@@ -1,5 +1,13 @@
 # 状态与计划
 
+## 2026-11-14：STORE-01 恢复冷启动基准
+
+已新增 `bench_recovery` Rust worker、[Python 测量工具](../tools/bench_recovery.py)、`just bench-recovery` 与工具回归测试。工具用真实管线生成 TXT/EPUB Ready 产物，每轮启动全新 release Rust 进程，只计时 `PathStore::new`，并校验 recovered/Ready/Indexing 数量和稳定损坏原因。
+
+[Linux 报告](benchmarks/2026-11-14-linux-recovery.md) 中，1000 本小型 TXT/EPUB 产物（4.674MiB）的 p50/p95 为 29.391/30.073ms；100 本 scale=64 放大产物（300.045MiB）为 197.949/212.550ms，最大记录 RSS 14.828MiB。单本 `index.bin` 损坏时，1000 本书稳定恢复为 999 Ready + 1 Indexing，其余书不受影响。
+
+当前数据显示耗时随产物总量近似线性，RSS 保持有界；尚无证据支持立即引入代际 manifest 或延迟审计。页缓存未驱逐，数据不代表手机或冷块设备预算；后续仍以真实阅读器联调暴露的问题为启动条件。
+
 ## 2026-11-14：阅读器宿主流程联调
 
 当前机器上没有旧 PerchReader App 工作区，无法直接实施 Flutter UI、EPUB DOM 选区或真机页面跳转。为了继续推进可在本仓库验证的集成边界，新增 [阅读器宿主流程](reader-integration.md) 和 `example/reader_flow.dart`。
@@ -27,7 +35,7 @@ JSON API 保持 v1.4 和 35 个方法，既有 recovered/state/reason 形状已�
 | API 工具回归 / 真实 C 与 Dart AOT 重放 | 8 passed；两个客户端各 261 次，全部一致 |
 | Dart 分析 / 真实 FFI smoke | 通过；172 passed / 0 failed |
 
-当前改动保留在工作区，未提交。`pipeline.open` 的 Ready 产物审计成本与已存书籍的 index/text 总量成比例，本轮未测大书库冷启；如真实阅读器暴露瓶颈，再以代际 manifest 或延迟审计单独优化。IO-01、LOC-01 和 STORE-01 的主动队列已全部完成；下一步回到真实阅读器联调。
+该批核心路线改动已在 `2ca11a3` 提交。`pipeline.open` 的 Ready 产物审计成本与 index/text 总量成比例，后续已用上方恢复冷启动基准完成量化。IO-01、LOC-01 和 STORE-01 的主动队列已全部完成；下一步回到真实阅读器联调。
 
 ## 2026-11-13：LOC-01 搜索命中回源文本
 

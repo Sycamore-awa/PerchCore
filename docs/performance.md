@@ -31,7 +31,7 @@ cargo run -p perch-import --release --example bench_register
 | 并发 | 根 Registry/Mutex 只做句柄管理；book/TXT 只读共享，pipeline 按对象串行；close 后拒绝新请求，已取得租约的请求完成 | 已完成 CTX-02；取消、等待在途任务和异常退出留给按需的 CTX-03 |
 | 生命周期 | 显式 context 可成组销毁；worker 异常退出仍不会自动调用 close | CTX-03 异常退出回收与恢复规则 |
 | 搜索定位 | TXT/EPUB 连续源映射与两个端点；旧产物仍搜索，缺少映射时定位提示重建 | 已完成 LOC-01；源文件变更后的重锚、页面跳转和高亮由阅读器联调 |
-| 产物恢复 | `pipeline.open` 顺序读取每本 Ready 书的 refinement/index/text 并验证映射与正文一致性；不同时常驻所有书 | STORE-01 已收口正确性；大书库冷启耗时尚未建立基线，如成为真实瓶颈再评估代际 manifest 或延迟审计 |
+| 产物恢复 | `pipeline.open` 顺序读取每本 Ready 书的 refinement/index/text 并验证映射与正文一致性；不同时常驻所有书 | STORE-01 正确性与 Linux 恢复基线已收口；1000 本小产物 p50 29.4ms，100 本/300MiB 放大产物 p50 197.9ms；真实设备或更大书库超预算时再评估代际 manifest 或延迟审计 |
 
 ## 可复现本地基线
 
@@ -54,3 +54,11 @@ cargo run -p perch-import --release --example bench_register
 连续长行只需一个源区间；有大量 CRLF/空行折叠的 UTF-8 样本需要 4,097 个区间，产物增量和加载校验成本更高。长行路径打开 p50 为 33.5827ms，已打开句柄上的定位为 0.0059ms。带映射加载的最大记录进程 RSS 分别为 UTF-8 29.727MiB、长行 34.781MiB、EPUB3 26.504MiB；完整分布和原始计数见报告。
 
 RSS 每项使用全新进程，保留每轮 VmRSS 和最终 VmHWM，报告取两者的最大记录值。Linux 计数存在近似与异步更新，最终 VmHWM 可能略低于先前 VmRSS，不能保证捕获所有瞬时峰值。进程包含 Python/Rust、准备、操作与校验，进程间差值不能解释为映射的独占分配量。页缓存未控制，复现命令与字段见 [测量说明](benchmarks/README.md)。
+
+## STORE-01 恢复冷启动基线
+
+[2026-11-14 Linux 报告](benchmarks/2026-11-14-linux-recovery.md) 使用全新 release Rust 进程测量 `PathStore::new`，每项 20 次计时、2 次预热。正确性集 TXT/EPUB 产物交替组成的 1000 本书库共 4.674MiB，p50/p95 为 29.391/30.073ms；破坏一本书的索引后为 29.252/29.777ms，结果稳定为 999 Ready + 1 Indexing。
+
+scale=64 的 long-line TXT/EPUB3 产物交替组成 100 本、300.045MiB 书库，p50/p95 为 197.949/212.550ms，最大记录 RSS 14.828MiB。从 1/10/100 本数据看，时间随产物总量近似线性，而 RSS 没有随总书库大小同比例增长，符合“逐本审计、不同时常驻全库索引”的设计。
+
+这些是宿主 Linux、未驱逐页缓存的新进程数据，不是手机或冷块设备预算。当前不为这一路径增加 manifest 或延迟审计的格式/一致性复杂度；若真实设备冷启或超过此规模的书库超出产品预算，再以本报告为对照开启优化。

@@ -119,3 +119,23 @@ python3 tools/bench_source_map.py \
 重开对照的 index 与 body 完全相同，旧形状仅省略可选 sourceMap，两个分支都运行当前实现。路径打开只测新实现，不能解释为改动前后抽取耗时对比。JSON 保留原始耗时、源/入口/库 SHA-256、样本规模、区间数和产物大小。
 
 每样本/方法使用新的 exec 进程。Linux 保留准备前后、每轮操作后及清理后的 VmRSS，并保留最终 VmHWM 原值；`maximum_recorded_rss` 取所有这些记录的最大值，Markdown 对应“最大记录 RSS”。Linux 的近似/异步计数可能让最终 VmHWM 小于先前 VmRSS，采样也不保证全部瞬时峰值。RSS 包含 Python/Rust、准备和校验，不能把进程差值解释为 SDK 独占分配量。系统页缓存未控制，本报告不代表冷缓存或设备预算。
+
+## STORE-01 恢复冷启动测量
+
+[tools/bench_recovery.py](../../tools/bench_recovery.py) 用真实管线分别生成 TXT 和 EPUB Ready 产物，再组成不同规模的书库。每次测量都启动全新的 release Rust worker，只计时 `PathStore::new`，进程启动、产物复制与结果校验均不在计时区间。
+
+```sh
+# 默认：小产物 1/10/100/1000 本，scale=64 产物 1/10/100 本
+just bench-recovery
+
+# 复现归档的 Linux 报告
+python3 tools/bench_recovery.py \
+  --output docs/benchmarks/2026-11-14-linux-recovery.json
+
+# 小规模工具/正确性检查
+python3 tools/bench_recovery.py \
+  --counts 1,2 --large-counts 1 --iterations 1 --warmups 0 \
+  --performance-scale 2 --output target/store01/smoke.json
+```
+
+[当前 Linux 报告](2026-11-14-linux-recovery.md) 覆盖健康书库与单本 `index.bin` 损坏。JSON 保留每轮纳秒耗时、进程墙钟、VmRSS/VmHWM、产物字节数、恢复状态计数、环境与源码/可执行文件 SHA-256。默认每项 20 次测量、2 次预热。系统页缓存没有被驱逐；这是“全新进程的首次恢复”，不是冷块设备 I/O。RSS 是 worker 整个进程的记录，不是 SDK 独占分配。
