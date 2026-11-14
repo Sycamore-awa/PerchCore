@@ -1,5 +1,15 @@
 # 状态与计划
 
+## 2026-11-14：恢复产物故障矩阵
+
+在不引入 fuzz 框架或新恢复格式的前提下，补充了 ROBUST-01 的一个确定性小切片：对 Ready 书的 `refinement.json` 缺失/损坏、`index.bin` 缺失/损坏/未来版本、`text.json` 缺失/损坏/未来版本，以及 sourceMap 缺失/null/未来版本/结构损坏建立 12 组端到端回归。
+
+矩阵一次性打开同一书库，验证健康书仍为 Ready，refinement 问题只降级到 registered，index/text/sourceMap 问题只降级到 indexing，且原因保持 `STORE_REFINEMENT_INVALID` / `STORE_INDEX_INVALID` 稳定前缀。随后为所有受损书重新登记源路径，2 本从精修重做，12 本全部恢复 Ready、可搜索且具有有效 sourceMap。
+
+新矩阵放在独立集成测试中，不改变恢复基准已归档的生产源码哈希。`just ci` 通过：Rust 现为 498 passed / 1 ignored，Clippy、格式、14 项 Python 工具测试、35 方法/261 组当前 API 契约及冻结兼容夹具均通过。
+
+这只收紧新 STORE-01 逻辑最直接的风险；ZIP/XML、TXT 编码、PDF、Locator 的广泛损坏输入和 fuzz 入口仍没有真实问题驱动，ROBUST-01 保持未完成。
+
 ## 2026-11-14：STORE-01 恢复冷启动基准
 
 已新增 `bench_recovery` Rust worker、[Python 测量工具](../tools/bench_recovery.py)、`just bench-recovery` 与工具回归测试。工具用真实管线生成 TXT/EPUB Ready 产物，每轮启动全新 release Rust 进程，只计时 `PathStore::new`，并校验 recovered/Ready/Indexing 数量和稳定损坏原因。
