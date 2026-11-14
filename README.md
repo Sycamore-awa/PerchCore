@@ -15,7 +15,9 @@ PerchCore 从 PerchReader 提取，保留既有核心实现与 Git 历史。当�
 | EPUB | EPUB 2/3 ZIP、OPF、NAV/NCX、元数据、封面识别、正文抽取、CFI 与上下文重定位 |
 | TXT | UTF-8/GBK/Big5 等编码探测与解码、字符/字节换算、行索引、按字符切片 |
 | 搜索 | 无词典 CJK 分词、短语搜索、分片倒排、delta+varint 索引持久化 |
+| 命中回源 | TXT 原解码字符/UTF-8 字节端点；EPUB href、文本节点路径与 scalar/UTF-16 端点 |
 | 导入 | 文件采样指纹、登记/去重计划、优先级、配额、退避、恢复与重试 |
+| FFI 生命周期 | 独立 context、句柄归属、按 context 固定配额、对象级并发与成组销毁 |
 | PDF | 页数、大纲、元数据与页定位；不包含渲染或正文抽取 |
 | 定位模型 | 与 Readium Locator 字段兼容，附加带版本的 TXT/PDF 扩展 |
 | 可选 Rust 模块 | HLC/LWW 同步合并；卷页几何计算 |
@@ -78,7 +80,7 @@ docs/                架构、接口、存储、验证、性能与迁移记录
 
 ## 后续目标与任务
 
-[开发路线与任务清单](docs/roadmap.md) 是后续工作的入口，列出阶段、任务依赖、交付物和验收条件。BASE-01/02 与 API-01/02 已完成；当前已有可复现样本、Linux 基线、31 方法契约及 [版本与兼容策略](docs/compatibility.md)。下一项为 **CTX-01 独立上下文**，再推进并发和大文件优化。默认资源限额、平台与发布范围实施前确认。
+[阅读器核心路线](docs/roadmap.md) 是后续工作的入口。BASE-01/02、API-01/02、CTX-01/02、IO-01、LOC-01 与 STORE-01 已完成；当前已有可复现样本、Linux 基线、35 方法契约、[版本与兼容策略](docs/compatibility.md)、独立上下文、对象级并发、[文件路径输入](docs/io.md)、[搜索命中回源文本](docs/source-location.md)和[产物恢复规则](docs/storage.md#store-01-恢复规则)。[阅读器宿主流程](docs/reader-integration.md) 已跑通导入、重启恢复、搜索、回源与 TXT/EPUB 坐标输出；下一步需要真实 App 工作区完成阅读视图跳转。
 
 ## 验证与性能
 
@@ -89,9 +91,9 @@ cargo test --workspace --all-features --locked
 cargo build -p perch-ffi --release --locked
 ```
 
-已有 Linux 上解析、索引、查询、存储和跨语言调用的可复现基线，跨设备性能仍待测量。当前 TXT 仍全量解码，部分 FFI 接口使用十六进制 JSON，全局句柄锁也限制并发；详见 [性能与限制](docs/performance.md)。
+已有 Linux 上解析、索引、查询、存储和跨语言调用的可复现基线，以及[源映射尺寸、打开与定位测量](docs/benchmarks/2026-11-13-linux-source-map.md)，跨设备性能仍待测量。精修/索引/PDF 支持文件路径输入，TXT 统计可不传输全文；TXT 仍全量解码，旧十六进制接口保留。context 已隔离所有权和配额，耗时操作不再占用根注册锁，详见 [性能与限制](docs/performance.md)。
 
-文档：[架构](docs/architecture.md) · [C ABI](docs/ffi.md) · [完整方法参考](docs/api-reference.md) · [Schema 与样例](api/README.md) · [版本与兼容方案](docs/compatibility.md) · [存储契约](docs/storage.md) · [构建与验证](docs/build.md) · [目标与任务](docs/roadmap.md) · [状态与计划](docs/status.md) · [迁移说明](docs/migration.md)。
+文档：[架构](docs/architecture.md) · [C ABI](docs/ffi.md) · [完整方法参考](docs/api-reference.md) · [Schema 与样例](api/README.md) · [版本与兼容方案](docs/compatibility.md) · [独立上下文设计](docs/context.md) · [存储契约](docs/storage.md) · [阅读器宿主联调](docs/reader-integration.md) · [构建与验证](docs/build.md) · [目标与任务](docs/roadmap.md) · [状态与计划](docs/status.md) · [迁移说明](docs/migration.md)。
 
 ## 许可证
 

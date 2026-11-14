@@ -149,6 +149,7 @@ jobs:
           dart analyze
           dart run tool/ffi_smoke.dart ../../../target/release/libperch_ffi.so
           dart run example/main.dart ../../../target/release/libperch_ffi.so ../../../examples/data/sample.txt
+          dart run example/reader_flow.dart ../../../target/release/libperch_ffi.so ../../../examples/data/sample.txt 文字
       - name: Complete C and Dart contract replay
         run: |
           python tools/check_api.py --replay --skip-build

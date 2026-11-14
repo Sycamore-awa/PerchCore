@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -18,8 +19,29 @@ from jsonschema import Draft202012Validator, FormatChecker
 from referencing import Registry, Resource
 from referencing.exceptions import NoSuchResource
 
-from api_catalog import COMMON_ID, REQUEST_ID, RESPONSE_ID, ROOT, artifacts
-from api_examples import BOOK
+from api_catalog import COMMON_ID, REQUEST_ID, RESPONSE_ID, ROOT, SCHEMA_VERSION, artifacts
+from api_examples import BOOK, LOC_BOOK, LOC_TEXT
+
+CONTEXT_ENTRY_ERRORS = {"CONTEXT_BAD_HANDLE", "CONTEXT_METHOD_SCOPE"}
+FROZEN_V1_SCHEMAS = {
+    "common": "50b6487c41a2a8c03fe5fce1e1671a0627d27e2df3c95e7b1f6d2fbc963e3ca7",
+    "request": "85be3a7baf47128cdd8bebb46743bc54481ca91a9e31a37e98d2182fd1e0c2d5",
+    "response": "79dd0f66dcbb1ac3b7bced1a4f9fc005d52a1399699c32d1b359d0ca3070d028",
+}
+FROZEN_V1_2_FILES = {
+    "common.schema.json": "2a2c4961771eaf010c5023d2796a8ba7647dab2620521fe22c752a711e5268c7",
+    "request.schema.json": "13ff7a70daf178841177e81f75b80041b4f12514a0bb9978b57712db5177c19f",
+    "response.schema.json": "b66519e6836444bf076de1776bc54ca2c93c1bfbd011c14c714a612175bdceee",
+    "examples.json": "f72834921ce2148626d9cda95735dea9fbe2fd65447f504a39940f03722a198f",
+    "responses.json": "89398a459f4e2d97499fdba1c4398eb0159a9fe4be45ba8aad2ba5c40efff20f",
+}
+FROZEN_V1_3_FILES = {
+    "common.schema.json": "419312d1c8b7a26a61311ce02d8434e597d1b3cd1b5cabbfd13c78a08532d1ff",
+    "request.schema.json": "8936c1abf5df6874cebce3e04c07238f9f7ad9a55bb34998715cfb76cfac3567",
+    "response.schema.json": "10119d3167d6575c3d64e3e97ec689ea6564db7187660e551713ac967244810a",
+    "examples.json": "9fc2cea996f32387c89f42902f3306dd3690b72def359845be37dc4cc2ea3b33",
+    "responses.json": "2e536e679eeda8bcdd92792604f51c61924c48a7b3821a0d78df09ff8d2be9e2",
+}
 
 
 def read_json(path):
@@ -30,11 +52,11 @@ def no_network(uri):
     raise NoSuchResource(ref=uri)
 
 
-def validators():
+def validators(version=SCHEMA_VERSION):
     registry = Registry(retrieve=no_network)
     schemas = {}
     for name in ("common", "request", "response"):
-        schema = read_json(ROOT / "api" / f"{name}.schema.json")
+        schema = read_json(ROOT / "api" / version / f"{name}.schema.json")
         Draft202012Validator.check_schema(schema)
         registry = registry.with_resource(schema["$id"], Resource.from_contents(schema))
         schemas[schema["$id"]] = schema
@@ -78,12 +100,24 @@ def variables(directory):
     corpus = ROOT / "examples/data/corpus/inputs"
     return {"source": str(directory / "中文窗口.txt"), "missing": str(directory / "missing.txt"),
             "out": str(directory / "artifacts"), "out2": str(directory / "second-pipeline"),
+            "context_out_first": str(directory / "context-first"),
+            "context_out_second": str(directory / "context-second"),
+            "context_out_extra": str(directory / "context-extra"),
             "bad_policy_dir": str(directory / "bad-policy"), "blocked": str(directory / "blocked"),
             "index": str(directory / "artifacts" / BOOK / "index.bin"),
             "text_json": str(directory / "artifacts" / BOOK / "text.json"),
             "future_json": str(directory / "future.json"),
             "mismatch_json": str(directory / "mismatch.json"),
+            "loc_source": str(directory / "source-locations.txt"),
+            "loc_out": str(directory / "location-artifacts"),
+            "loc_index": str(directory / "location-artifacts" / LOC_BOOK / "index.bin"),
+            "loc_text_json": str(directory / "location-artifacts" / LOC_BOOK / "text.json"),
+            **{variant: str(directory / f"{variant}.json") for variant in ("missing_map", "future_map", "bad_map", "null_map")},
+            "legacy_index": str(directory / "legacy-index.bin"),
+            "legacy_text": str(ROOT / "examples/data/compatibility/text-v0.json"),
             "gbk": str(corpus / "gbk.txt"), "pdf": str(corpus / "pdf-outline.pdf"),
+            "epub": str(corpus / "epub3.epub"), "big5": str(corpus / "big5.txt"),
+            "long_line": str(corpus / "long-line.txt"),
             "epub_hex": (corpus / "epub3.epub").read_bytes().hex(),
             "pdf_hex": (corpus / "pdf-outline.pdf").read_bytes().hex()}
 
@@ -106,7 +140,7 @@ def normalized(result, context):
 
 def method_names():
     source = (ROOT / "crates/perch-ffi/src/lib.rs").read_text(encoding="utf-8")
-    source = source.split("fn call(method:", 1)[1].split("/// 解析可选的", 1)[0]
+    source = source.split("fn call(", 1)[1].split("/// 解析可选的", 1)[0]
     return set(re.findall(r'^ {8}"([^"]+)" =>', source, flags=re.MULTILINE))
 
 
@@ -116,7 +150,7 @@ def check_offline(require_responses=True):
     validation = validators()
     catalog = read_json(ROOT / "api/catalog.json")["methods"]
     names = {entry["name"] for entry in catalog}
-    assert len(names) == len(catalog) == 31
+    assert len(names) == len(catalog) == 35
     assert names == method_names(), f"FFI/catalog method drift: {names ^ method_names()}"
     fixtures = read_json(ROOT / "api/examples.json")
     calls = [call for call in fixtures["calls"] if "method" in call]
@@ -146,8 +180,85 @@ def check_offline(require_responses=True):
             assert "error" not in response, call["id"]
             subset(response, call.get("expect", {}), call["id"])
         results[call["id"]] = response
-    print(f"Offline contracts: {len(names)} methods / 3 Draft 2020-12 schemas / {len(calls)} request-response examples passed")
+    for name, expected_hash in FROZEN_V1_SCHEMAS.items():
+        path = ROOT / "api" / f"{name}.schema.json"
+        assert hashlib.sha256(path.read_bytes()).hexdigest() == expected_hash, f"Frozen v1 schema drift: {name}"
+        legacy = read_json(path)
+        Draft202012Validator.check_schema(legacy)
+    check_path_parity(responses)
+    check_frozen_v1_2()
+    check_frozen_v1_3()
+    check_location_parity(responses)
+    print(f"Offline contracts: {len(names)} methods / 3 current + 9 frozen Draft 2020-12 schemas / {len(calls)} request-response examples passed")
     return validation
+
+
+def check_path_parity(responses):
+    for legacy, path in [("refine", "refine_path"), ("refine_epub", "refine_epub_path"),
+                         ("book_open", "book_path"), ("book_epub_open", "book_epub_path"),
+                         ("book_search", "book_path_search"), ("book_epub_search", "book_epub_path_search"),
+                         ("txt_analyze", "inspect_path")]:
+        before = {key: value for key, value in responses[legacy].items() if key not in ("handle", "text")}
+        after = {key: value for key, value in responses[path].items() if key not in ("handle", "text")}
+        assert before == after, f"Path/bytes result drift: {path}"
+    assert "text" not in responses["inspect_large"] and "handle" not in responses["inspect_large"]
+    assert responses["inspect_large"]["chars"] > 20000
+    assert len(json.dumps(responses["inspect_large"])) < 256
+
+
+def check_location_parity(responses):
+    for name in ("loc_txt_path", "loc_loaded"):
+        assert responses[name] == responses["loc_txt"], f"Source location drift: {name}"
+    for name in ("loc_load_search", "loc_missing_map_search", "loc_future_map_search", "loc_bad_map_search", "loc_null_map_search"):
+        assert responses[name] == responses["loc_txt_search"], f"Mapping error blocked or changed search: {name}"
+    for name, expected in [("loc_txt", "乙"), ("loc_txt_emoji", "😀"), ("loc_txt_combining", "é"), ("loc_txt_collapsed", "\r\n\r\n")]:
+        location = responses[name]
+        start, end = location["start"], location["end"]
+        assert LOC_TEXT[start["charOffset"]:end["charOffset"]] == expected
+        assert LOC_TEXT.encode()[start["byteOffset"]:end["byteOffset"]].decode() == expected
+    assert responses["loc_txt_read"]["text"] == "乙"
+    corpus = ROOT / "examples/data/corpus/texts"
+    for encoding in ("gbk", "big5"):
+        decoded = (corpus / f"{encoding}.decoded.txt").read_bytes().decode()
+        start, end = responses[f"loc_{encoding}"]["start"], responses[f"loc_{encoding}"]["end"]
+        assert decoded[start["charOffset"]:end["charOffset"]] == "中文"
+        assert decoded.encode()[start["byteOffset"]:end["byteOffset"]].decode() == "中文"
+
+
+def check_frozen_v1_2():
+    check_frozen("v1.2", FROZEN_V1_2_FILES, 161)
+
+
+def check_frozen_v1_3():
+    check_frozen("v1.3", FROZEN_V1_3_FILES, 189)
+
+
+def check_frozen(version, hashes, count):
+    directory = ROOT / "api" / version
+    for name, expected_hash in hashes.items():
+        assert hashlib.sha256((directory / name).read_bytes()).hexdigest() == expected_hash, f"Frozen {version} drift: {name}"
+    validation = validators(version)
+    request_validator = validation[f"urn:perchcore:api:{version}:request"]
+    response_validator = validation[f"urn:perchcore:api:{version}:response"]
+    fixtures = read_json(directory / "examples.json")
+    responses = read_json(directory / "responses.json")
+    current = read_json(ROOT / "api/responses.json")
+    assert len(responses) == count
+    context, results = variables(Path("/offline/perch")), {}
+    for call in fixtures["calls"]:
+        if "method" not in call:
+            continue
+        args = resolve(call["args"], context, results)
+        assert request_validator.is_valid({"method": call["method"], "args": args}) == call["canonical"], call["id"]
+        response = responses[call["id"]]
+        expected = json.loads(json.dumps(response))
+        if call["id"] == "compatibility":
+            expected["api"]["minor"] = current[call["id"]]["api"]["minor"]
+        assert current[call["id"]] == expected, f"Legacy response drift: {call['id']}"
+        if call["method"] != "unknown.method":
+            validate(response_validator, {"method": call["method"], "result": response}, call["id"])
+        subset(response, {"error": {"code": call["error"]}} if call.get("error") else call.get("expect", {}), call["id"])
+        results[call["id"]] = response
 
 
 def run_command(command, cwd=ROOT, env=None):
@@ -212,8 +323,9 @@ class Client:
         finally:
             self.lines.put(None)
 
-    def invoke(self, method, args):
-        self.process.stdin.write(method + "\t" + json.dumps(args, ensure_ascii=False) + "\n")
+    def invoke(self, method, args, context=None):
+        prefix = "" if context is None else str(context)
+        self.process.stdin.write(prefix + "\t" + method + "\t" + json.dumps(args, ensure_ascii=False) + "\n")
         self.process.stdin.flush()
         try:
             line = self.lines.get(timeout=30)
@@ -248,6 +360,22 @@ def action(step, context):
         Path(context["future_json"]).write_text(json.dumps(value), encoding="utf-8")
     elif step["action"] == "block_book_dir":
         (Path(context["out"]) / step["book"]).write_bytes(b"block directory creation")
+    elif step["action"] == "corrupt_index":
+        (Path(context["out"]) / step["book"] / "index.bin").write_bytes(b"broken index")
+    elif step["action"] == "source_map_variants":
+        original = read_json(Path(context["loc_text_json"]))
+        assert original["sourceMap"]["version"] == 1
+        for variant in ("missing_map", "future_map", "bad_map", "null_map"):
+            value = json.loads(json.dumps(original))
+            if variant == "missing_map":
+                value.pop("sourceMap")
+            elif variant == "future_map":
+                value["sourceMap"]["version"] = 2
+            elif variant == "bad_map":
+                value["sourceMap"]["runs"] = []
+            else:
+                value["sourceMap"] = None
+            Path(context[variant]).write_text(json.dumps(value), encoding="utf-8")
     else:
         raise AssertionError(f"Unknown fixture action: {step}")
 
@@ -268,6 +396,9 @@ def replay(clients, library, skip_build, record):
                 directory.mkdir()
                 context = variables(directory)
                 Path(context["source"]).write_bytes(fixture["source_text"].encode())
+                Path(context["loc_source"]).write_bytes(fixture["location_text"].encode())
+                legacy_hex = (ROOT / "examples/data/compatibility/index-v1.hex").read_text(encoding="utf-8")
+                Path(context["legacy_index"]).write_bytes(bytes.fromhex(legacy_hex))
                 Path(context["blocked"]).write_bytes(b"not a directory")
                 states[name] = (context, {})
                 processes[name] = Client(command, cwd, env, directory / "stderr.log")
@@ -280,16 +411,18 @@ def replay(clients, library, skip_build, record):
                 for name, process in processes.items():
                     context, results = states[name]
                     args = resolve(step["args"], context, results)
+                    call_context = resolve(step["context"], context, results) if "context" in step else None
                     accepted = validation[REQUEST_ID].is_valid({"method": step["method"], "args": args})
                     assert accepted == step["canonical"], f"{step['id']}: request classification wrong"
-                    result = process.invoke(step["method"], args)
+                    result = process.invoke(step["method"], args, call_context)
                     if step["method"] in catalog:
                         validate(validation[RESPONSE_ID], {"method": step["method"], "result": result}, step["id"])
                     if step.get("error"):
                         assert result.get("error", {}).get("code") == step["error"], f"{step['id']}: {result}"
                         assert isinstance(result["error"]["message"], str) and result["error"]["message"]
                         if step["method"] in catalog:
-                            assert step["error"] in catalog[step["method"]]["errors"], f"Unlisted error: {step}"
+                            assert (step["error"] in catalog[step["method"]]["errors"] or
+                                    step["error"] in CONTEXT_ENTRY_ERRORS), f"Unlisted error: {step}"
                     else:
                         assert "error" not in result, f"{step['id']}: {result}"
                         subset(result, step.get("expect", {}), step["id"])
@@ -301,6 +434,7 @@ def replay(clients, library, skip_build, record):
                 if not record:
                     assert first == golden[step["id"]], f"Golden contract drift at {step['id']}: {first} != {golden[step['id']]}"
                 observed[step["id"]] = first
+            check_path_parity(observed)
             success = True
         finally:
             for process in processes.values():

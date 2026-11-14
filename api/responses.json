@@ -6,7 +6,7 @@
     "abi": 1,
     "api": {
       "major": 1,
-      "minor": 1
+      "minor": 4
     },
     "artifacts": {
       "index": {
@@ -1740,6 +1740,3388 @@
     "lines": 3
   },
   "txt_quota_release_close": {
+    "closed": true
+  },
+  "context_first_open": {
+    "context": 1
+  },
+  "context_second_open": {
+    "context": 2
+  },
+  "context_first_txt": {
+    "certain": true,
+    "chars": 17,
+    "encoding": "UTF-8",
+    "hadErrors": false,
+    "handle": 22,
+    "lines": 3
+  },
+  "context_second_txt": {
+    "certain": true,
+    "chars": 17,
+    "encoding": "UTF-8",
+    "hadErrors": false,
+    "handle": 23,
+    "lines": 3
+  },
+  "context_first_pipeline": {
+    "handle": 24,
+    "recovered": []
+  },
+  "context_second_pipeline": {
+    "handle": 25,
+    "recovered": []
+  },
+  "context_first_pipeline_quota": {
+    "error": {
+      "code": "PIPELINE_TOO_MANY_OPEN",
+      "message": "<diagnostic>"
+    }
+  },
+  "context_cross_use": {
+    "error": {
+      "code": "CONTEXT_HANDLE_MISMATCH",
+      "message": "<diagnostic>"
+    }
+  },
+  "context_first_close": {
+    "closed": true,
+    "released": {
+      "books": 0,
+      "pipelines": 1,
+      "txts": 1
+    }
+  },
+  "context_second_slice": {
+    "chars": 1,
+    "end": 1,
+    "start": 0,
+    "text": "中",
+    "total": 17
+  },
+  "context_second_pipeline_status": {
+    "idle": true,
+    "stats": {
+      "exhausted": 0,
+      "inFlight": 0,
+      "pendingIndex": 0,
+      "pendingRefine": 0
+    }
+  },
+  "context_closed_call": {
+    "error": {
+      "code": "CONTEXT_BAD_HANDLE",
+      "message": "<diagnostic>"
+    }
+  },
+  "context_first_close_twice": {
+    "closed": false,
+    "released": {
+      "books": 0,
+      "pipelines": 0,
+      "txts": 0
+    }
+  },
+  "context_second_close": {
+    "closed": true,
+    "released": {
+      "books": 0,
+      "pipelines": 1,
+      "txts": 1
+    }
+  },
+  "inspect_path": {
+    "certain_encoding": true,
+    "chars": 17,
+    "encoding": "UTF-8",
+    "had_decode_errors": false,
+    "lines": 3
+  },
+  "inspect_gbk": {
+    "certain_encoding": true,
+    "chars": 656,
+    "encoding": "GBK",
+    "had_decode_errors": false,
+    "lines": 17
+  },
+  "inspect_big5": {
+    "certain_encoding": true,
+    "chars": 688,
+    "encoding": "Big5",
+    "had_decode_errors": false,
+    "lines": 17
+  },
+  "inspect_large": {
+    "certain_encoding": true,
+    "chars": 22530,
+    "encoding": "UTF-8",
+    "had_decode_errors": false,
+    "lines": 1
+  },
+  "inspect_missing": {
+    "error": {
+      "code": "TXT_IO",
+      "message": "<diagnostic>"
+    }
+  },
+  "inspect_encoding": {
+    "error": {
+      "code": "TXT_UNKNOWN_ENCODING",
+      "message": "<diagnostic>"
+    }
+  },
+  "refine_path": {
+    "charCount": 13,
+    "encoding": "UTF-8",
+    "spineCount": 1
+  },
+  "refine_epub_path": {
+    "author": "PerchCore",
+    "charCount": 973,
+    "language": "zh",
+    "spineCount": 2,
+    "title": "PerchCore EPUB 3.0 样本",
+    "toc": [
+      "第一章",
+      "检索接续"
+    ]
+  },
+  "refine_path_limited": {
+    "charCount": 3,
+    "encoding": "UTF-8",
+    "spineCount": 1
+  },
+  "refine_path_missing": {
+    "error": {
+      "code": "JOBS_IO",
+      "message": "<diagnostic>"
+    }
+  },
+  "book_path_missing": {
+    "error": {
+      "code": "BOOK_OPEN_IO",
+      "message": "<diagnostic>"
+    }
+  },
+  "refine_path_neither": {
+    "error": {
+      "code": "FFI_BAD_ARGS",
+      "message": "<diagnostic>"
+    }
+  },
+  "refine_path_both": {
+    "error": {
+      "code": "FFI_BAD_ARGS",
+      "message": "<diagnostic>"
+    }
+  },
+  "refine_path_null_path": {
+    "error": {
+      "code": "FFI_BAD_ARGS",
+      "message": "<diagnostic>"
+    }
+  },
+  "refine_path_null_both": {
+    "error": {
+      "code": "FFI_BAD_ARGS",
+      "message": "<diagnostic>"
+    }
+  },
+  "refine_path_bad_epub": {
+    "error": {
+      "code": "JOBS_EPUB",
+      "message": "<diagnostic>"
+    }
+  },
+  "book_path_neither": {
+    "error": {
+      "code": "FFI_BAD_ARGS",
+      "message": "<diagnostic>"
+    }
+  },
+  "book_path_both": {
+    "error": {
+      "code": "FFI_BAD_ARGS",
+      "message": "<diagnostic>"
+    }
+  },
+  "book_path_null_path": {
+    "error": {
+      "code": "FFI_BAD_ARGS",
+      "message": "<diagnostic>"
+    }
+  },
+  "book_path_null_both": {
+    "error": {
+      "code": "FFI_BAD_ARGS",
+      "message": "<diagnostic>"
+    }
+  },
+  "book_path_bad_epub": {
+    "error": {
+      "code": "JOBS_EPUB",
+      "message": "<diagnostic>"
+    }
+  },
+  "path_context": {
+    "context": 3
+  },
+  "book_path": {
+    "chapterCount": 1,
+    "charCount": 15,
+    "chunks": 1,
+    "handle": 26,
+    "tokens": 12,
+    "truncated": false
+  },
+  "book_path_search": {
+    "hits": [
+      {
+        "charEnd": 2,
+        "charStart": 0,
+        "locator": {
+          "href": "txt:",
+          "locations": {
+            "progression": 0.0
+          },
+          "perch": {
+            "format": "txt",
+            "txtByteOffset": 0,
+            "txtOffset": 0,
+            "v": 1
+          },
+          "text": {
+            "highlight": "中文🦀café\n第二行\n末尾"
+          },
+          "type": "text/plain"
+        },
+        "snippet": "中文🦀café\n第二行\n末尾"
+      }
+    ]
+  },
+  "book_epub_path": {
+    "chapterCount": 2,
+    "charCount": 1171,
+    "chunks": 1,
+    "handle": 27,
+    "tokens": 34,
+    "truncated": false
+  },
+  "book_epub_path_search": {
+    "hits": [
+      {
+        "charEnd": 6,
+        "charStart": 4,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.0034158838599487617
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "第一章\n海风 🦀 café 与中文。海风 🦀 café …"
+          }
+        },
+        "snippet": "第一章\n海风 🦀 café 与中文。海风 🦀 café …"
+      },
+      {
+        "charEnd": 21,
+        "charStart": 19,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.016225448334756618
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "第一章\n海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+          }
+        },
+        "snippet": "第一章\n海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+      },
+      {
+        "charEnd": 36,
+        "charStart": 34,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.029035012809564473
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+          }
+        },
+        "snippet": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+      },
+      {
+        "charEnd": 51,
+        "charStart": 49,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.04184457728437233
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+          }
+        },
+        "snippet": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+      },
+      {
+        "charEnd": 66,
+        "charStart": 64,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.05465414175918019
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+          }
+        },
+        "snippet": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+      },
+      {
+        "charEnd": 81,
+        "charStart": 79,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.06746370623398805
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+          }
+        },
+        "snippet": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+      },
+      {
+        "charEnd": 96,
+        "charStart": 94,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.0802732707087959
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+          }
+        },
+        "snippet": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+      },
+      {
+        "charEnd": 111,
+        "charStart": 109,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.09308283518360376
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+          }
+        },
+        "snippet": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+      },
+      {
+        "charEnd": 126,
+        "charStart": 124,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.10589239965841162
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+          }
+        },
+        "snippet": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+      },
+      {
+        "charEnd": 141,
+        "charStart": 139,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.11870196413321947
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+          }
+        },
+        "snippet": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+      },
+      {
+        "charEnd": 156,
+        "charStart": 154,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.13151152860802734
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+          }
+        },
+        "snippet": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+      },
+      {
+        "charEnd": 171,
+        "charStart": 169,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.1443210930828352
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+          }
+        },
+        "snippet": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+      },
+      {
+        "charEnd": 186,
+        "charStart": 184,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.15713065755764305
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+          }
+        },
+        "snippet": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+      },
+      {
+        "charEnd": 201,
+        "charStart": 199,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.1699402220324509
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+          }
+        },
+        "snippet": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+      },
+      {
+        "charEnd": 216,
+        "charStart": 214,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.18274978650725876
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+          }
+        },
+        "snippet": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+      },
+      {
+        "charEnd": 231,
+        "charStart": 229,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.19555935098206662
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+          }
+        },
+        "snippet": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+      },
+      {
+        "charEnd": 246,
+        "charStart": 244,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.20836891545687447
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+          }
+        },
+        "snippet": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+      },
+      {
+        "charEnd": 261,
+        "charStart": 259,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.22117847993168233
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+          }
+        },
+        "snippet": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+      },
+      {
+        "charEnd": 276,
+        "charStart": 274,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.23398804440649018
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+          }
+        },
+        "snippet": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+      },
+      {
+        "charEnd": 291,
+        "charStart": 289,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.24679760888129804
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+          }
+        },
+        "snippet": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+      },
+      {
+        "charEnd": 306,
+        "charStart": 304,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.2596071733561059
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+          }
+        },
+        "snippet": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+      },
+      {
+        "charEnd": 321,
+        "charStart": 319,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.27241673783091375
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+          }
+        },
+        "snippet": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+      },
+      {
+        "charEnd": 336,
+        "charStart": 334,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.2852263023057216
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+          }
+        },
+        "snippet": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+      },
+      {
+        "charEnd": 351,
+        "charStart": 349,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.29803586678052946
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+          }
+        },
+        "snippet": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+      },
+      {
+        "charEnd": 366,
+        "charStart": 364,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.3108454312553373
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+          }
+        },
+        "snippet": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+      },
+      {
+        "charEnd": 381,
+        "charStart": 379,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.32365499573014517
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+          }
+        },
+        "snippet": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+      },
+      {
+        "charEnd": 396,
+        "charStart": 394,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.336464560204953
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+          }
+        },
+        "snippet": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+      },
+      {
+        "charEnd": 411,
+        "charStart": 409,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.3492741246797609
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+          }
+        },
+        "snippet": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+      },
+      {
+        "charEnd": 426,
+        "charStart": 424,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.36208368915456873
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+          }
+        },
+        "snippet": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+      },
+      {
+        "charEnd": 441,
+        "charStart": 439,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.3748932536293766
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+          }
+        },
+        "snippet": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+      },
+      {
+        "charEnd": 456,
+        "charStart": 454,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.38770281810418444
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+          }
+        },
+        "snippet": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+      },
+      {
+        "charEnd": 471,
+        "charStart": 469,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.4005123825789923
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。\n跨章节\n检索接续\nE…"
+          }
+        },
+        "snippet": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。\n跨章节\n检索接续\nE…"
+      }
+    ]
+  },
+  "book_path_cross_context": {
+    "error": {
+      "code": "CONTEXT_HANDLE_MISMATCH",
+      "message": "<diagnostic>"
+    }
+  },
+  "path_context_close": {
+    "closed": true,
+    "released": {
+      "books": 2,
+      "pipelines": 0,
+      "txts": 0
+    }
+  },
+  "loc_context": {
+    "context": 4
+  },
+  "loc_txt_open": {
+    "chapterCount": 1,
+    "charCount": 9,
+    "chunks": 5,
+    "handle": 28,
+    "tokens": 6,
+    "truncated": false
+  },
+  "loc_txt_search": {
+    "hits": [
+      {
+        "charEnd": 4,
+        "charStart": 3,
+        "locator": {
+          "href": "txt:",
+          "locations": {
+            "progression": 0.3333333333333333
+          },
+          "perch": {
+            "format": "txt",
+            "txtByteOffset": 5,
+            "txtOffset": 3,
+            "v": 1
+          },
+          "text": {
+            "highlight": "甲\n\n乙😀é中文"
+          },
+          "type": "text/plain"
+        },
+        "snippet": "甲\n\n乙😀é中文"
+      }
+    ]
+  },
+  "loc_txt": {
+    "containsSynthetic": false,
+    "end": {
+      "byteOffset": 14,
+      "charOffset": 10,
+      "kind": "txt"
+    },
+    "start": {
+      "byteOffset": 11,
+      "charOffset": 9,
+      "kind": "txt"
+    }
+  },
+  "loc_txt_emoji": {
+    "containsSynthetic": false,
+    "end": {
+      "byteOffset": 18,
+      "charOffset": 11,
+      "kind": "txt"
+    },
+    "start": {
+      "byteOffset": 14,
+      "charOffset": 10,
+      "kind": "txt"
+    }
+  },
+  "loc_txt_combining": {
+    "containsSynthetic": false,
+    "end": {
+      "byteOffset": 21,
+      "charOffset": 13,
+      "kind": "txt"
+    },
+    "start": {
+      "byteOffset": 18,
+      "charOffset": 11,
+      "kind": "txt"
+    }
+  },
+  "loc_txt_collapsed": {
+    "containsSynthetic": false,
+    "end": {
+      "byteOffset": 11,
+      "charOffset": 9,
+      "kind": "txt"
+    },
+    "start": {
+      "byteOffset": 7,
+      "charOffset": 5,
+      "kind": "txt"
+    }
+  },
+  "loc_range_empty": {
+    "error": {
+      "code": "BOOK_LOCATE_BAD_RANGE",
+      "message": "<diagnostic>"
+    }
+  },
+  "loc_range_reversed": {
+    "error": {
+      "code": "BOOK_LOCATE_BAD_RANGE",
+      "message": "<diagnostic>"
+    }
+  },
+  "loc_range_past_end": {
+    "error": {
+      "code": "BOOK_LOCATE_BAD_RANGE",
+      "message": "<diagnostic>"
+    }
+  },
+  "loc_range_negative": {
+    "error": {
+      "code": "BOOK_LOCATE_BAD_RANGE",
+      "message": "<diagnostic>"
+    }
+  },
+  "loc_range_string": {
+    "error": {
+      "code": "BOOK_LOCATE_BAD_RANGE",
+      "message": "<diagnostic>"
+    }
+  },
+  "loc_range_boolean": {
+    "error": {
+      "code": "BOOK_LOCATE_BAD_RANGE",
+      "message": "<diagnostic>"
+    }
+  },
+  "loc_range_missing": {
+    "error": {
+      "code": "BOOK_LOCATE_BAD_RANGE",
+      "message": "<diagnostic>"
+    }
+  },
+  "loc_cross_context": {
+    "error": {
+      "code": "CONTEXT_HANDLE_MISMATCH",
+      "message": "<diagnostic>"
+    }
+  },
+  "loc_txt_reader": {
+    "certain": true,
+    "chars": 15,
+    "encoding": "UTF-8",
+    "hadErrors": false,
+    "handle": 29,
+    "lines": 5
+  },
+  "loc_txt_read": {
+    "chars": 1,
+    "end": 10,
+    "start": 9,
+    "text": "乙",
+    "total": 15
+  },
+  "loc_wrong_kind": {
+    "error": {
+      "code": "HANDLE_WRONG_KIND",
+      "message": "<diagnostic>"
+    }
+  },
+  "loc_txt_path_open": {
+    "chapterCount": 1,
+    "charCount": 9,
+    "chunks": 5,
+    "handle": 30,
+    "tokens": 6,
+    "truncated": false
+  },
+  "loc_txt_path": {
+    "containsSynthetic": false,
+    "end": {
+      "byteOffset": 14,
+      "charOffset": 10,
+      "kind": "txt"
+    },
+    "start": {
+      "byteOffset": 11,
+      "charOffset": 9,
+      "kind": "txt"
+    }
+  },
+  "loc_gbk_open": {
+    "chapterCount": 1,
+    "charCount": 639,
+    "chunks": 1,
+    "handle": 31,
+    "tokens": 40,
+    "truncated": false
+  },
+  "loc_gbk_search": {
+    "hits": [
+      {
+        "charEnd": 2,
+        "charStart": 0,
+        "locator": {
+          "href": "txt:",
+          "locations": {
+            "progression": 0.0
+          },
+          "perch": {
+            "format": "txt",
+            "txtByteOffset": 0,
+            "txtOffset": 0,
+            "v": 1
+          },
+          "text": {
+            "highlight": "中文编码测试，海风吹过书页，读者记录文字与位置。En…"
+          },
+          "type": "text/plain"
+        },
+        "snippet": "中文编码测试，海风吹过书页，读者记录文字与位置。En…"
+      },
+      {
+        "charEnd": 42,
+        "charStart": 40,
+        "locator": {
+          "href": "txt:",
+          "locations": {
+            "progression": 0.06259780907668232
+          },
+          "perch": {
+            "format": "txt",
+            "txtByteOffset": 90,
+            "txtOffset": 40,
+            "v": 1
+          },
+          "text": {
+            "highlight": "…记录文字与位置。English Phrase。\n中文编码测试，海风吹过书页，读者记录文字与位置。En…"
+          },
+          "type": "text/plain"
+        },
+        "snippet": "…记录文字与位置。English Phrase。\n中文编码测试，海风吹过书页，读者记录文字与位置。En…"
+      },
+      {
+        "charEnd": 82,
+        "charStart": 80,
+        "locator": {
+          "href": "txt:",
+          "locations": {
+            "progression": 0.12519561815336464
+          },
+          "perch": {
+            "format": "txt",
+            "txtByteOffset": 180,
+            "txtOffset": 80,
+            "v": 1
+          },
+          "text": {
+            "highlight": "…记录文字与位置。English Phrase。\n中文编码测试，海风吹过书页，读者记录文字与位置。En…"
+          },
+          "type": "text/plain"
+        },
+        "snippet": "…记录文字与位置。English Phrase。\n中文编码测试，海风吹过书页，读者记录文字与位置。En…"
+      },
+      {
+        "charEnd": 122,
+        "charStart": 120,
+        "locator": {
+          "href": "txt:",
+          "locations": {
+            "progression": 0.18779342723004694
+          },
+          "perch": {
+            "format": "txt",
+            "txtByteOffset": 270,
+            "txtOffset": 120,
+            "v": 1
+          },
+          "text": {
+            "highlight": "…记录文字与位置。English Phrase。\n中文编码测试，海风吹过书页，读者记录文字与位置。En…"
+          },
+          "type": "text/plain"
+        },
+        "snippet": "…记录文字与位置。English Phrase。\n中文编码测试，海风吹过书页，读者记录文字与位置。En…"
+      },
+      {
+        "charEnd": 162,
+        "charStart": 160,
+        "locator": {
+          "href": "txt:",
+          "locations": {
+            "progression": 0.25039123630672927
+          },
+          "perch": {
+            "format": "txt",
+            "txtByteOffset": 360,
+            "txtOffset": 160,
+            "v": 1
+          },
+          "text": {
+            "highlight": "…记录文字与位置。English Phrase。\n中文编码测试，海风吹过书页，读者记录文字与位置。En…"
+          },
+          "type": "text/plain"
+        },
+        "snippet": "…记录文字与位置。English Phrase。\n中文编码测试，海风吹过书页，读者记录文字与位置。En…"
+      },
+      {
+        "charEnd": 202,
+        "charStart": 200,
+        "locator": {
+          "href": "txt:",
+          "locations": {
+            "progression": 0.3129890453834116
+          },
+          "perch": {
+            "format": "txt",
+            "txtByteOffset": 450,
+            "txtOffset": 200,
+            "v": 1
+          },
+          "text": {
+            "highlight": "…记录文字与位置。English Phrase。\n中文编码测试，海风吹过书页，读者记录文字与位置。En…"
+          },
+          "type": "text/plain"
+        },
+        "snippet": "…记录文字与位置。English Phrase。\n中文编码测试，海风吹过书页，读者记录文字与位置。En…"
+      },
+      {
+        "charEnd": 242,
+        "charStart": 240,
+        "locator": {
+          "href": "txt:",
+          "locations": {
+            "progression": 0.3755868544600939
+          },
+          "perch": {
+            "format": "txt",
+            "txtByteOffset": 540,
+            "txtOffset": 240,
+            "v": 1
+          },
+          "text": {
+            "highlight": "…记录文字与位置。English Phrase。\n中文编码测试，海风吹过书页，读者记录文字与位置。En…"
+          },
+          "type": "text/plain"
+        },
+        "snippet": "…记录文字与位置。English Phrase。\n中文编码测试，海风吹过书页，读者记录文字与位置。En…"
+      },
+      {
+        "charEnd": 282,
+        "charStart": 280,
+        "locator": {
+          "href": "txt:",
+          "locations": {
+            "progression": 0.4381846635367762
+          },
+          "perch": {
+            "format": "txt",
+            "txtByteOffset": 630,
+            "txtOffset": 280,
+            "v": 1
+          },
+          "text": {
+            "highlight": "…记录文字与位置。English Phrase。\n中文编码测试，海风吹过书页，读者记录文字与位置。En…"
+          },
+          "type": "text/plain"
+        },
+        "snippet": "…记录文字与位置。English Phrase。\n中文编码测试，海风吹过书页，读者记录文字与位置。En…"
+      },
+      {
+        "charEnd": 322,
+        "charStart": 320,
+        "locator": {
+          "href": "txt:",
+          "locations": {
+            "progression": 0.5007824726134585
+          },
+          "perch": {
+            "format": "txt",
+            "txtByteOffset": 720,
+            "txtOffset": 320,
+            "v": 1
+          },
+          "text": {
+            "highlight": "…记录文字与位置。English Phrase。\n中文编码测试，海风吹过书页，读者记录文字与位置。En…"
+          },
+          "type": "text/plain"
+        },
+        "snippet": "…记录文字与位置。English Phrase。\n中文编码测试，海风吹过书页，读者记录文字与位置。En…"
+      },
+      {
+        "charEnd": 362,
+        "charStart": 360,
+        "locator": {
+          "href": "txt:",
+          "locations": {
+            "progression": 0.5633802816901409
+          },
+          "perch": {
+            "format": "txt",
+            "txtByteOffset": 810,
+            "txtOffset": 360,
+            "v": 1
+          },
+          "text": {
+            "highlight": "…记录文字与位置。English Phrase。\n中文编码测试，海风吹过书页，读者记录文字与位置。En…"
+          },
+          "type": "text/plain"
+        },
+        "snippet": "…记录文字与位置。English Phrase。\n中文编码测试，海风吹过书页，读者记录文字与位置。En…"
+      },
+      {
+        "charEnd": 402,
+        "charStart": 400,
+        "locator": {
+          "href": "txt:",
+          "locations": {
+            "progression": 0.6259780907668232
+          },
+          "perch": {
+            "format": "txt",
+            "txtByteOffset": 900,
+            "txtOffset": 400,
+            "v": 1
+          },
+          "text": {
+            "highlight": "…记录文字与位置。English Phrase。\n中文编码测试，海风吹过书页，读者记录文字与位置。En…"
+          },
+          "type": "text/plain"
+        },
+        "snippet": "…记录文字与位置。English Phrase。\n中文编码测试，海风吹过书页，读者记录文字与位置。En…"
+      },
+      {
+        "charEnd": 442,
+        "charStart": 440,
+        "locator": {
+          "href": "txt:",
+          "locations": {
+            "progression": 0.6885758998435054
+          },
+          "perch": {
+            "format": "txt",
+            "txtByteOffset": 990,
+            "txtOffset": 440,
+            "v": 1
+          },
+          "text": {
+            "highlight": "…记录文字与位置。English Phrase。\n中文编码测试，海风吹过书页，读者记录文字与位置。En…"
+          },
+          "type": "text/plain"
+        },
+        "snippet": "…记录文字与位置。English Phrase。\n中文编码测试，海风吹过书页，读者记录文字与位置。En…"
+      },
+      {
+        "charEnd": 482,
+        "charStart": 480,
+        "locator": {
+          "href": "txt:",
+          "locations": {
+            "progression": 0.7511737089201878
+          },
+          "perch": {
+            "format": "txt",
+            "txtByteOffset": 1080,
+            "txtOffset": 480,
+            "v": 1
+          },
+          "text": {
+            "highlight": "…记录文字与位置。English Phrase。\n中文编码测试，海风吹过书页，读者记录文字与位置。En…"
+          },
+          "type": "text/plain"
+        },
+        "snippet": "…记录文字与位置。English Phrase。\n中文编码测试，海风吹过书页，读者记录文字与位置。En…"
+      },
+      {
+        "charEnd": 522,
+        "charStart": 520,
+        "locator": {
+          "href": "txt:",
+          "locations": {
+            "progression": 0.8137715179968701
+          },
+          "perch": {
+            "format": "txt",
+            "txtByteOffset": 1170,
+            "txtOffset": 520,
+            "v": 1
+          },
+          "text": {
+            "highlight": "…记录文字与位置。English Phrase。\n中文编码测试，海风吹过书页，读者记录文字与位置。En…"
+          },
+          "type": "text/plain"
+        },
+        "snippet": "…记录文字与位置。English Phrase。\n中文编码测试，海风吹过书页，读者记录文字与位置。En…"
+      },
+      {
+        "charEnd": 562,
+        "charStart": 560,
+        "locator": {
+          "href": "txt:",
+          "locations": {
+            "progression": 0.8763693270735524
+          },
+          "perch": {
+            "format": "txt",
+            "txtByteOffset": 1260,
+            "txtOffset": 560,
+            "v": 1
+          },
+          "text": {
+            "highlight": "…记录文字与位置。English Phrase。\n中文编码测试，海风吹过书页，读者记录文字与位置。En…"
+          },
+          "type": "text/plain"
+        },
+        "snippet": "…记录文字与位置。English Phrase。\n中文编码测试，海风吹过书页，读者记录文字与位置。En…"
+      },
+      {
+        "charEnd": 602,
+        "charStart": 600,
+        "locator": {
+          "href": "txt:",
+          "locations": {
+            "progression": 0.9389671361502347
+          },
+          "perch": {
+            "format": "txt",
+            "txtByteOffset": 1350,
+            "txtOffset": 600,
+            "v": 1
+          },
+          "text": {
+            "highlight": "…记录文字与位置。English Phrase。\n中文编码测试，海风吹过书页，读者记录文字与位置。En…"
+          },
+          "type": "text/plain"
+        },
+        "snippet": "…记录文字与位置。English Phrase。\n中文编码测试，海风吹过书页，读者记录文字与位置。En…"
+      }
+    ]
+  },
+  "loc_gbk": {
+    "containsSynthetic": false,
+    "end": {
+      "byteOffset": 6,
+      "charOffset": 2,
+      "kind": "txt"
+    },
+    "start": {
+      "byteOffset": 0,
+      "charOffset": 0,
+      "kind": "txt"
+    }
+  },
+  "loc_gbk_close": {
+    "closed": true
+  },
+  "loc_big5_open": {
+    "chapterCount": 1,
+    "charCount": 671,
+    "chunks": 1,
+    "handle": 32,
+    "tokens": 44,
+    "truncated": false
+  },
+  "loc_big5_search": {
+    "hits": [
+      {
+        "charEnd": 4,
+        "charStart": 2,
+        "locator": {
+          "href": "txt:",
+          "locations": {
+            "progression": 0.0029806259314456036
+          },
+          "perch": {
+            "format": "txt",
+            "txtByteOffset": 6,
+            "txtOffset": 2,
+            "v": 1
+          },
+          "text": {
+            "highlight": "繁體中文編碼測試，海風吹過書頁，讀者記錄文字與位置。En…"
+          },
+          "type": "text/plain"
+        },
+        "snippet": "繁體中文編碼測試，海風吹過書頁，讀者記錄文字與位置。En…"
+      },
+      {
+        "charEnd": 46,
+        "charStart": 44,
+        "locator": {
+          "href": "txt:",
+          "locations": {
+            "progression": 0.06557377049180328
+          },
+          "perch": {
+            "format": "txt",
+            "txtByteOffset": 102,
+            "txtOffset": 44,
+            "v": 1
+          },
+          "text": {
+            "highlight": "…文字與位置。English Phrase。\n繁體中文編碼測試，海風吹過書頁，讀者記錄文字與位置。En…"
+          },
+          "type": "text/plain"
+        },
+        "snippet": "…文字與位置。English Phrase。\n繁體中文編碼測試，海風吹過書頁，讀者記錄文字與位置。En…"
+      },
+      {
+        "charEnd": 88,
+        "charStart": 86,
+        "locator": {
+          "href": "txt:",
+          "locations": {
+            "progression": 0.12816691505216096
+          },
+          "perch": {
+            "format": "txt",
+            "txtByteOffset": 198,
+            "txtOffset": 86,
+            "v": 1
+          },
+          "text": {
+            "highlight": "…文字與位置。English Phrase。\n繁體中文編碼測試，海風吹過書頁，讀者記錄文字與位置。En…"
+          },
+          "type": "text/plain"
+        },
+        "snippet": "…文字與位置。English Phrase。\n繁體中文編碼測試，海風吹過書頁，讀者記錄文字與位置。En…"
+      },
+      {
+        "charEnd": 130,
+        "charStart": 128,
+        "locator": {
+          "href": "txt:",
+          "locations": {
+            "progression": 0.19076005961251863
+          },
+          "perch": {
+            "format": "txt",
+            "txtByteOffset": 294,
+            "txtOffset": 128,
+            "v": 1
+          },
+          "text": {
+            "highlight": "…文字與位置。English Phrase。\n繁體中文編碼測試，海風吹過書頁，讀者記錄文字與位置。En…"
+          },
+          "type": "text/plain"
+        },
+        "snippet": "…文字與位置。English Phrase。\n繁體中文編碼測試，海風吹過書頁，讀者記錄文字與位置。En…"
+      },
+      {
+        "charEnd": 172,
+        "charStart": 170,
+        "locator": {
+          "href": "txt:",
+          "locations": {
+            "progression": 0.2533532041728763
+          },
+          "perch": {
+            "format": "txt",
+            "txtByteOffset": 390,
+            "txtOffset": 170,
+            "v": 1
+          },
+          "text": {
+            "highlight": "…文字與位置。English Phrase。\n繁體中文編碼測試，海風吹過書頁，讀者記錄文字與位置。En…"
+          },
+          "type": "text/plain"
+        },
+        "snippet": "…文字與位置。English Phrase。\n繁體中文編碼測試，海風吹過書頁，讀者記錄文字與位置。En…"
+      },
+      {
+        "charEnd": 214,
+        "charStart": 212,
+        "locator": {
+          "href": "txt:",
+          "locations": {
+            "progression": 0.31594634873323396
+          },
+          "perch": {
+            "format": "txt",
+            "txtByteOffset": 486,
+            "txtOffset": 212,
+            "v": 1
+          },
+          "text": {
+            "highlight": "…文字與位置。English Phrase。\n繁體中文編碼測試，海風吹過書頁，讀者記錄文字與位置。En…"
+          },
+          "type": "text/plain"
+        },
+        "snippet": "…文字與位置。English Phrase。\n繁體中文編碼測試，海風吹過書頁，讀者記錄文字與位置。En…"
+      },
+      {
+        "charEnd": 256,
+        "charStart": 254,
+        "locator": {
+          "href": "txt:",
+          "locations": {
+            "progression": 0.37853949329359166
+          },
+          "perch": {
+            "format": "txt",
+            "txtByteOffset": 582,
+            "txtOffset": 254,
+            "v": 1
+          },
+          "text": {
+            "highlight": "…文字與位置。English Phrase。\n繁體中文編碼測試，海風吹過書頁，讀者記錄文字與位置。En…"
+          },
+          "type": "text/plain"
+        },
+        "snippet": "…文字與位置。English Phrase。\n繁體中文編碼測試，海風吹過書頁，讀者記錄文字與位置。En…"
+      },
+      {
+        "charEnd": 298,
+        "charStart": 296,
+        "locator": {
+          "href": "txt:",
+          "locations": {
+            "progression": 0.44113263785394935
+          },
+          "perch": {
+            "format": "txt",
+            "txtByteOffset": 678,
+            "txtOffset": 296,
+            "v": 1
+          },
+          "text": {
+            "highlight": "…文字與位置。English Phrase。\n繁體中文編碼測試，海風吹過書頁，讀者記錄文字與位置。En…"
+          },
+          "type": "text/plain"
+        },
+        "snippet": "…文字與位置。English Phrase。\n繁體中文編碼測試，海風吹過書頁，讀者記錄文字與位置。En…"
+      },
+      {
+        "charEnd": 340,
+        "charStart": 338,
+        "locator": {
+          "href": "txt:",
+          "locations": {
+            "progression": 0.503725782414307
+          },
+          "perch": {
+            "format": "txt",
+            "txtByteOffset": 774,
+            "txtOffset": 338,
+            "v": 1
+          },
+          "text": {
+            "highlight": "…文字與位置。English Phrase。\n繁體中文編碼測試，海風吹過書頁，讀者記錄文字與位置。En…"
+          },
+          "type": "text/plain"
+        },
+        "snippet": "…文字與位置。English Phrase。\n繁體中文編碼測試，海風吹過書頁，讀者記錄文字與位置。En…"
+      },
+      {
+        "charEnd": 382,
+        "charStart": 380,
+        "locator": {
+          "href": "txt:",
+          "locations": {
+            "progression": 0.5663189269746647
+          },
+          "perch": {
+            "format": "txt",
+            "txtByteOffset": 870,
+            "txtOffset": 380,
+            "v": 1
+          },
+          "text": {
+            "highlight": "…文字與位置。English Phrase。\n繁體中文編碼測試，海風吹過書頁，讀者記錄文字與位置。En…"
+          },
+          "type": "text/plain"
+        },
+        "snippet": "…文字與位置。English Phrase。\n繁體中文編碼測試，海風吹過書頁，讀者記錄文字與位置。En…"
+      },
+      {
+        "charEnd": 424,
+        "charStart": 422,
+        "locator": {
+          "href": "txt:",
+          "locations": {
+            "progression": 0.6289120715350224
+          },
+          "perch": {
+            "format": "txt",
+            "txtByteOffset": 966,
+            "txtOffset": 422,
+            "v": 1
+          },
+          "text": {
+            "highlight": "…文字與位置。English Phrase。\n繁體中文編碼測試，海風吹過書頁，讀者記錄文字與位置。En…"
+          },
+          "type": "text/plain"
+        },
+        "snippet": "…文字與位置。English Phrase。\n繁體中文編碼測試，海風吹過書頁，讀者記錄文字與位置。En…"
+      },
+      {
+        "charEnd": 466,
+        "charStart": 464,
+        "locator": {
+          "href": "txt:",
+          "locations": {
+            "progression": 0.6915052160953801
+          },
+          "perch": {
+            "format": "txt",
+            "txtByteOffset": 1062,
+            "txtOffset": 464,
+            "v": 1
+          },
+          "text": {
+            "highlight": "…文字與位置。English Phrase。\n繁體中文編碼測試，海風吹過書頁，讀者記錄文字與位置。En…"
+          },
+          "type": "text/plain"
+        },
+        "snippet": "…文字與位置。English Phrase。\n繁體中文編碼測試，海風吹過書頁，讀者記錄文字與位置。En…"
+      },
+      {
+        "charEnd": 508,
+        "charStart": 506,
+        "locator": {
+          "href": "txt:",
+          "locations": {
+            "progression": 0.7540983606557377
+          },
+          "perch": {
+            "format": "txt",
+            "txtByteOffset": 1158,
+            "txtOffset": 506,
+            "v": 1
+          },
+          "text": {
+            "highlight": "…文字與位置。English Phrase。\n繁體中文編碼測試，海風吹過書頁，讀者記錄文字與位置。En…"
+          },
+          "type": "text/plain"
+        },
+        "snippet": "…文字與位置。English Phrase。\n繁體中文編碼測試，海風吹過書頁，讀者記錄文字與位置。En…"
+      },
+      {
+        "charEnd": 550,
+        "charStart": 548,
+        "locator": {
+          "href": "txt:",
+          "locations": {
+            "progression": 0.8166915052160953
+          },
+          "perch": {
+            "format": "txt",
+            "txtByteOffset": 1254,
+            "txtOffset": 548,
+            "v": 1
+          },
+          "text": {
+            "highlight": "…文字與位置。English Phrase。\n繁體中文編碼測試，海風吹過書頁，讀者記錄文字與位置。En…"
+          },
+          "type": "text/plain"
+        },
+        "snippet": "…文字與位置。English Phrase。\n繁體中文編碼測試，海風吹過書頁，讀者記錄文字與位置。En…"
+      },
+      {
+        "charEnd": 592,
+        "charStart": 590,
+        "locator": {
+          "href": "txt:",
+          "locations": {
+            "progression": 0.879284649776453
+          },
+          "perch": {
+            "format": "txt",
+            "txtByteOffset": 1350,
+            "txtOffset": 590,
+            "v": 1
+          },
+          "text": {
+            "highlight": "…文字與位置。English Phrase。\n繁體中文編碼測試，海風吹過書頁，讀者記錄文字與位置。En…"
+          },
+          "type": "text/plain"
+        },
+        "snippet": "…文字與位置。English Phrase。\n繁體中文編碼測試，海風吹過書頁，讀者記錄文字與位置。En…"
+      },
+      {
+        "charEnd": 634,
+        "charStart": 632,
+        "locator": {
+          "href": "txt:",
+          "locations": {
+            "progression": 0.9418777943368107
+          },
+          "perch": {
+            "format": "txt",
+            "txtByteOffset": 1446,
+            "txtOffset": 632,
+            "v": 1
+          },
+          "text": {
+            "highlight": "…文字與位置。English Phrase。\n繁體中文編碼測試，海風吹過書頁，讀者記錄文字與位置。En…"
+          },
+          "type": "text/plain"
+        },
+        "snippet": "…文字與位置。English Phrase。\n繁體中文編碼測試，海風吹過書頁，讀者記錄文字與位置。En…"
+      }
+    ]
+  },
+  "loc_big5": {
+    "containsSynthetic": false,
+    "end": {
+      "byteOffset": 12,
+      "charOffset": 4,
+      "kind": "txt"
+    },
+    "start": {
+      "byteOffset": 6,
+      "charOffset": 2,
+      "kind": "txt"
+    }
+  },
+  "loc_big5_close": {
+    "closed": true
+  },
+  "loc_epub_open": {
+    "chapterCount": 2,
+    "charCount": 1171,
+    "chunks": 1,
+    "handle": 33,
+    "tokens": 34,
+    "truncated": false
+  },
+  "loc_epub_search": {
+    "hits": [
+      {
+        "charEnd": 6,
+        "charStart": 4,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.0034158838599487617
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "第一章\n海风 🦀 café 与中文。海风 🦀 café …"
+          }
+        },
+        "snippet": "第一章\n海风 🦀 café 与中文。海风 🦀 café …"
+      },
+      {
+        "charEnd": 21,
+        "charStart": 19,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.016225448334756618
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "第一章\n海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+          }
+        },
+        "snippet": "第一章\n海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+      },
+      {
+        "charEnd": 36,
+        "charStart": 34,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.029035012809564473
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+          }
+        },
+        "snippet": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+      },
+      {
+        "charEnd": 51,
+        "charStart": 49,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.04184457728437233
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+          }
+        },
+        "snippet": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+      },
+      {
+        "charEnd": 66,
+        "charStart": 64,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.05465414175918019
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+          }
+        },
+        "snippet": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+      },
+      {
+        "charEnd": 81,
+        "charStart": 79,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.06746370623398805
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+          }
+        },
+        "snippet": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+      },
+      {
+        "charEnd": 96,
+        "charStart": 94,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.0802732707087959
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+          }
+        },
+        "snippet": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+      },
+      {
+        "charEnd": 111,
+        "charStart": 109,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.09308283518360376
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+          }
+        },
+        "snippet": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+      },
+      {
+        "charEnd": 126,
+        "charStart": 124,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.10589239965841162
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+          }
+        },
+        "snippet": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+      },
+      {
+        "charEnd": 141,
+        "charStart": 139,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.11870196413321947
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+          }
+        },
+        "snippet": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+      },
+      {
+        "charEnd": 156,
+        "charStart": 154,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.13151152860802734
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+          }
+        },
+        "snippet": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+      },
+      {
+        "charEnd": 171,
+        "charStart": 169,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.1443210930828352
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+          }
+        },
+        "snippet": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+      },
+      {
+        "charEnd": 186,
+        "charStart": 184,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.15713065755764305
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+          }
+        },
+        "snippet": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+      },
+      {
+        "charEnd": 201,
+        "charStart": 199,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.1699402220324509
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+          }
+        },
+        "snippet": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+      },
+      {
+        "charEnd": 216,
+        "charStart": 214,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.18274978650725876
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+          }
+        },
+        "snippet": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+      },
+      {
+        "charEnd": 231,
+        "charStart": 229,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.19555935098206662
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+          }
+        },
+        "snippet": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+      },
+      {
+        "charEnd": 246,
+        "charStart": 244,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.20836891545687447
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+          }
+        },
+        "snippet": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+      },
+      {
+        "charEnd": 261,
+        "charStart": 259,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.22117847993168233
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+          }
+        },
+        "snippet": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+      },
+      {
+        "charEnd": 276,
+        "charStart": 274,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.23398804440649018
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+          }
+        },
+        "snippet": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+      },
+      {
+        "charEnd": 291,
+        "charStart": 289,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.24679760888129804
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+          }
+        },
+        "snippet": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+      },
+      {
+        "charEnd": 306,
+        "charStart": 304,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.2596071733561059
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+          }
+        },
+        "snippet": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+      },
+      {
+        "charEnd": 321,
+        "charStart": 319,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.27241673783091375
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+          }
+        },
+        "snippet": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+      },
+      {
+        "charEnd": 336,
+        "charStart": 334,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.2852263023057216
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+          }
+        },
+        "snippet": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+      },
+      {
+        "charEnd": 351,
+        "charStart": 349,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.29803586678052946
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+          }
+        },
+        "snippet": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+      },
+      {
+        "charEnd": 366,
+        "charStart": 364,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.3108454312553373
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+          }
+        },
+        "snippet": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+      },
+      {
+        "charEnd": 381,
+        "charStart": 379,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.32365499573014517
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+          }
+        },
+        "snippet": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+      },
+      {
+        "charEnd": 396,
+        "charStart": 394,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.336464560204953
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+          }
+        },
+        "snippet": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+      },
+      {
+        "charEnd": 411,
+        "charStart": 409,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.3492741246797609
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+          }
+        },
+        "snippet": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+      },
+      {
+        "charEnd": 426,
+        "charStart": 424,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.36208368915456873
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+          }
+        },
+        "snippet": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+      },
+      {
+        "charEnd": 441,
+        "charStart": 439,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.3748932536293766
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+          }
+        },
+        "snippet": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+      },
+      {
+        "charEnd": 456,
+        "charStart": 454,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.38770281810418444
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+          }
+        },
+        "snippet": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café …"
+      },
+      {
+        "charEnd": 471,
+        "charStart": 469,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.4005123825789923
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。\n跨章节\n检索接续\nE…"
+          }
+        },
+        "snippet": "…afé 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。\n跨章节\n检索接续\nE…"
+      }
+    ]
+  },
+  "loc_epub": {
+    "containsSynthetic": false,
+    "end": {
+      "href": "/OEBPS/text/ch01.xhtml",
+      "kind": "epub",
+      "nodePath": "/2/4/2/1",
+      "scalarOffset": 2,
+      "utf16Offset": 2
+    },
+    "start": {
+      "href": "/OEBPS/text/ch01.xhtml",
+      "kind": "epub",
+      "nodePath": "/2/4/2/1",
+      "scalarOffset": 0,
+      "utf16Offset": 0
+    }
+  },
+  "loc_epub_cafe_search": {
+    "hits": [
+      {
+        "charEnd": 14,
+        "charStart": 9,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.007685738684884714
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "第一章\n海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀…"
+          }
+        },
+        "snippet": "第一章\n海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀…"
+      },
+      {
+        "charEnd": 29,
+        "charStart": 24,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.02049530315969257
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "第一章\n海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀…"
+          }
+        },
+        "snippet": "第一章\n海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀…"
+      },
+      {
+        "charEnd": 44,
+        "charStart": 39,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.033304867634500426
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀…"
+          }
+        },
+        "snippet": "…与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀…"
+      },
+      {
+        "charEnd": 59,
+        "charStart": 54,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.04611443210930828
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀…"
+          }
+        },
+        "snippet": "…与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀…"
+      },
+      {
+        "charEnd": 74,
+        "charStart": 69,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.05892399658411614
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀…"
+          }
+        },
+        "snippet": "…与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀…"
+      },
+      {
+        "charEnd": 89,
+        "charStart": 84,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.07173356105892399
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀…"
+          }
+        },
+        "snippet": "…与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀…"
+      },
+      {
+        "charEnd": 104,
+        "charStart": 99,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.08454312553373185
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀…"
+          }
+        },
+        "snippet": "…与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀…"
+      },
+      {
+        "charEnd": 119,
+        "charStart": 114,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.09735269000853972
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀…"
+          }
+        },
+        "snippet": "…与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀…"
+      },
+      {
+        "charEnd": 134,
+        "charStart": 129,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.11016225448334757
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀…"
+          }
+        },
+        "snippet": "…与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀…"
+      },
+      {
+        "charEnd": 149,
+        "charStart": 144,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.12297181895815543
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀…"
+          }
+        },
+        "snippet": "…与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀…"
+      },
+      {
+        "charEnd": 164,
+        "charStart": 159,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.13578138343296328
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀…"
+          }
+        },
+        "snippet": "…与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀…"
+      },
+      {
+        "charEnd": 179,
+        "charStart": 174,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.14859094790777114
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀…"
+          }
+        },
+        "snippet": "…与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀…"
+      },
+      {
+        "charEnd": 194,
+        "charStart": 189,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.161400512382579
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀…"
+          }
+        },
+        "snippet": "…与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀…"
+      },
+      {
+        "charEnd": 209,
+        "charStart": 204,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.17421007685738685
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀…"
+          }
+        },
+        "snippet": "…与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀…"
+      },
+      {
+        "charEnd": 224,
+        "charStart": 219,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.1870196413321947
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀…"
+          }
+        },
+        "snippet": "…与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀…"
+      },
+      {
+        "charEnd": 239,
+        "charStart": 234,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.19982920580700256
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀…"
+          }
+        },
+        "snippet": "…与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀…"
+      },
+      {
+        "charEnd": 254,
+        "charStart": 249,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.2126387702818104
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀…"
+          }
+        },
+        "snippet": "…与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀…"
+      },
+      {
+        "charEnd": 269,
+        "charStart": 264,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.22544833475661827
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀…"
+          }
+        },
+        "snippet": "…与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀…"
+      },
+      {
+        "charEnd": 284,
+        "charStart": 279,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.23825789923142612
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀…"
+          }
+        },
+        "snippet": "…与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀…"
+      },
+      {
+        "charEnd": 299,
+        "charStart": 294,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.251067463706234
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀…"
+          }
+        },
+        "snippet": "…与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀…"
+      },
+      {
+        "charEnd": 314,
+        "charStart": 309,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.26387702818104186
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀…"
+          }
+        },
+        "snippet": "…与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀…"
+      },
+      {
+        "charEnd": 329,
+        "charStart": 324,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.2766865926558497
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀…"
+          }
+        },
+        "snippet": "…与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀…"
+      },
+      {
+        "charEnd": 344,
+        "charStart": 339,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.28949615713065757
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀…"
+          }
+        },
+        "snippet": "…与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀…"
+      },
+      {
+        "charEnd": 359,
+        "charStart": 354,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.3023057216054654
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀…"
+          }
+        },
+        "snippet": "…与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀…"
+      },
+      {
+        "charEnd": 374,
+        "charStart": 369,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.3151152860802733
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀…"
+          }
+        },
+        "snippet": "…与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀…"
+      },
+      {
+        "charEnd": 389,
+        "charStart": 384,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.32792485055508114
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀…"
+          }
+        },
+        "snippet": "…与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀…"
+      },
+      {
+        "charEnd": 404,
+        "charStart": 399,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.340734415029889
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀…"
+          }
+        },
+        "snippet": "…与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀…"
+      },
+      {
+        "charEnd": 419,
+        "charStart": 414,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.35354397950469685
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀…"
+          }
+        },
+        "snippet": "…与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀…"
+      },
+      {
+        "charEnd": 434,
+        "charStart": 429,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.3663535439795047
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀…"
+          }
+        },
+        "snippet": "…与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀…"
+      },
+      {
+        "charEnd": 449,
+        "charStart": 444,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.37916310845431256
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀…"
+          }
+        },
+        "snippet": "…与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀…"
+      },
+      {
+        "charEnd": 464,
+        "charStart": 459,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.3919726729291204
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。\n跨章节…"
+          }
+        },
+        "snippet": "…与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。\n跨章节…"
+      },
+      {
+        "charEnd": 479,
+        "charStart": 474,
+        "locator": {
+          "href": "/OEBPS/text/ch01.xhtml",
+          "locations": {
+            "progression": 0.40478223740392827
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "…与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。\n跨章节\n检索接续\nEnglish P…"
+          }
+        },
+        "snippet": "…与中文。海风 🦀 café 与中文。海风 🦀 café 与中文。\n跨章节\n检索接续\nEnglish P…"
+      }
+    ]
+  },
+  "loc_epub_utf16": {
+    "containsSynthetic": false,
+    "end": {
+      "href": "/OEBPS/text/ch01.xhtml",
+      "kind": "epub",
+      "nodePath": "/2/4/2/1",
+      "scalarOffset": 10,
+      "utf16Offset": 11
+    },
+    "start": {
+      "href": "/OEBPS/text/ch01.xhtml",
+      "kind": "epub",
+      "nodePath": "/2/4/2/1",
+      "scalarOffset": 5,
+      "utf16Offset": 6
+    }
+  },
+  "loc_epub_synthetic": {
+    "error": {
+      "code": "BOOK_SOURCE_UNMAPPABLE",
+      "message": "<diagnostic>"
+    }
+  },
+  "loc_epub_inward_start": {
+    "containsSynthetic": true,
+    "end": {
+      "href": "/OEBPS/text/ch01.xhtml",
+      "kind": "epub",
+      "nodePath": "/2/4/2/1",
+      "scalarOffset": 2,
+      "utf16Offset": 2
+    },
+    "start": {
+      "href": "/OEBPS/text/ch01.xhtml",
+      "kind": "epub",
+      "nodePath": "/2/4/2/1",
+      "scalarOffset": 0,
+      "utf16Offset": 0
+    }
+  },
+  "loc_epub_inward_end": {
+    "containsSynthetic": true,
+    "end": {
+      "href": "/OEBPS/text/ch01.xhtml",
+      "kind": "epub",
+      "nodePath": "/2/2/2/1",
+      "scalarOffset": 3,
+      "utf16Offset": 3
+    },
+    "start": {
+      "href": "/OEBPS/text/ch01.xhtml",
+      "kind": "epub",
+      "nodePath": "/2/2/2/1",
+      "scalarOffset": 0,
+      "utf16Offset": 0
+    }
+  },
+  "loc_epub_cross_chapters": {
+    "containsSynthetic": true,
+    "end": {
+      "href": "/OEBPS/text/ch02.xhtml",
+      "kind": "epub",
+      "nodePath": "/2/4/4/1",
+      "scalarOffset": 3,
+      "utf16Offset": 3
+    },
+    "start": {
+      "href": "/OEBPS/text/ch01.xhtml",
+      "kind": "epub",
+      "nodePath": "/2/2/2/1",
+      "scalarOffset": 0,
+      "utf16Offset": 0
+    }
+  },
+  "loc_pipeline_open": {
+    "handle": 34,
+    "recovered": []
+  },
+  "loc_pipeline_enqueue": {
+    "attempts": 0,
+    "outcome": "queued",
+    "stage": "refine",
+    "state": "registered"
+  },
+  "loc_pipeline_refine": {
+    "book": "00000000-0000-4000-8000-000000000005",
+    "outcome": "refined",
+    "stage": "refine",
+    "stats": {
+      "exhausted": 0,
+      "inFlight": 0,
+      "pendingIndex": 1,
+      "pendingRefine": 0
+    }
+  },
+  "loc_pipeline_index": {
+    "book": "00000000-0000-4000-8000-000000000005",
+    "chunks": 5,
+    "outcome": "indexed",
+    "stage": "index",
+    "stats": {
+      "exhausted": 0,
+      "inFlight": 0,
+      "pendingIndex": 0,
+      "pendingRefine": 0
+    },
+    "tokens": 6
+  },
+  "loc_load": {
+    "chapterCount": 1,
+    "charCount": 9,
+    "chunks": 5,
+    "handle": 35,
+    "tokens": 6,
+    "truncated": false
+  },
+  "loc_load_search": {
+    "hits": [
+      {
+        "charEnd": 4,
+        "charStart": 3,
+        "locator": {
+          "href": "txt:",
+          "locations": {
+            "progression": 0.3333333333333333
+          },
+          "perch": {
+            "format": "txt",
+            "txtByteOffset": 5,
+            "txtOffset": 3,
+            "v": 1
+          },
+          "text": {
+            "highlight": "甲\n\n乙😀é中文"
+          },
+          "type": "text/plain"
+        },
+        "snippet": "甲\n\n乙😀é中文"
+      }
+    ]
+  },
+  "loc_loaded": {
+    "containsSynthetic": false,
+    "end": {
+      "byteOffset": 14,
+      "charOffset": 10,
+      "kind": "txt"
+    },
+    "start": {
+      "byteOffset": 11,
+      "charOffset": 9,
+      "kind": "txt"
+    }
+  },
+  "loc_missing_map_load": {
+    "chapterCount": 1,
+    "charCount": 9,
+    "chunks": 5,
+    "handle": 36,
+    "tokens": 6,
+    "truncated": false
+  },
+  "loc_missing_map_search": {
+    "hits": [
+      {
+        "charEnd": 4,
+        "charStart": 3,
+        "locator": {
+          "href": "txt:",
+          "locations": {
+            "progression": 0.3333333333333333
+          },
+          "perch": {
+            "format": "txt",
+            "txtByteOffset": 5,
+            "txtOffset": 3,
+            "v": 1
+          },
+          "text": {
+            "highlight": "甲\n\n乙😀é中文"
+          },
+          "type": "text/plain"
+        },
+        "snippet": "甲\n\n乙😀é中文"
+      }
+    ]
+  },
+  "loc_missing_map": {
+    "error": {
+      "code": "BOOK_SOURCE_MAP_MISSING",
+      "message": "<diagnostic>"
+    }
+  },
+  "loc_missing_map_close": {
+    "closed": true
+  },
+  "loc_future_map_load": {
+    "chapterCount": 1,
+    "charCount": 9,
+    "chunks": 5,
+    "handle": 37,
+    "tokens": 6,
+    "truncated": false
+  },
+  "loc_future_map_search": {
+    "hits": [
+      {
+        "charEnd": 4,
+        "charStart": 3,
+        "locator": {
+          "href": "txt:",
+          "locations": {
+            "progression": 0.3333333333333333
+          },
+          "perch": {
+            "format": "txt",
+            "txtByteOffset": 5,
+            "txtOffset": 3,
+            "v": 1
+          },
+          "text": {
+            "highlight": "甲\n\n乙😀é中文"
+          },
+          "type": "text/plain"
+        },
+        "snippet": "甲\n\n乙😀é中文"
+      }
+    ]
+  },
+  "loc_future_map": {
+    "error": {
+      "code": "BOOK_SOURCE_MAP_UNSUPPORTED_VERSION",
+      "message": "<diagnostic>"
+    }
+  },
+  "loc_future_map_close": {
+    "closed": true
+  },
+  "loc_bad_map_load": {
+    "chapterCount": 1,
+    "charCount": 9,
+    "chunks": 5,
+    "handle": 38,
+    "tokens": 6,
+    "truncated": false
+  },
+  "loc_bad_map_search": {
+    "hits": [
+      {
+        "charEnd": 4,
+        "charStart": 3,
+        "locator": {
+          "href": "txt:",
+          "locations": {
+            "progression": 0.3333333333333333
+          },
+          "perch": {
+            "format": "txt",
+            "txtByteOffset": 5,
+            "txtOffset": 3,
+            "v": 1
+          },
+          "text": {
+            "highlight": "甲\n\n乙😀é中文"
+          },
+          "type": "text/plain"
+        },
+        "snippet": "甲\n\n乙😀é中文"
+      }
+    ]
+  },
+  "loc_bad_map": {
+    "error": {
+      "code": "BOOK_SOURCE_MAP_INVALID",
+      "message": "<diagnostic>"
+    }
+  },
+  "loc_bad_map_close": {
+    "closed": true
+  },
+  "loc_null_map_load": {
+    "chapterCount": 1,
+    "charCount": 9,
+    "chunks": 5,
+    "handle": 39,
+    "tokens": 6,
+    "truncated": false
+  },
+  "loc_null_map_search": {
+    "hits": [
+      {
+        "charEnd": 4,
+        "charStart": 3,
+        "locator": {
+          "href": "txt:",
+          "locations": {
+            "progression": 0.3333333333333333
+          },
+          "perch": {
+            "format": "txt",
+            "txtByteOffset": 5,
+            "txtOffset": 3,
+            "v": 1
+          },
+          "text": {
+            "highlight": "甲\n\n乙😀é中文"
+          },
+          "type": "text/plain"
+        },
+        "snippet": "甲\n\n乙😀é中文"
+      }
+    ]
+  },
+  "loc_null_map": {
+    "error": {
+      "code": "BOOK_SOURCE_MAP_INVALID",
+      "message": "<diagnostic>"
+    }
+  },
+  "loc_null_map_close": {
+    "closed": true
+  },
+  "loc_legacy_load": {
+    "chapterCount": 1,
+    "charCount": 1,
+    "chunks": 1,
+    "handle": 40,
+    "tokens": 1,
+    "truncated": false
+  },
+  "loc_legacy_search": {
+    "hits": [
+      {
+        "charEnd": 1,
+        "charStart": 0,
+        "locator": {
+          "href": "/OPS/chapter.xhtml",
+          "locations": {
+            "progression": 0.0
+          },
+          "perch": {
+            "format": "epub",
+            "v": 1
+          },
+          "text": {
+            "highlight": "a"
+          }
+        },
+        "snippet": "a"
+      }
+    ]
+  },
+  "loc_legacy": {
+    "error": {
+      "code": "BOOK_SOURCE_MAP_MISSING",
+      "message": "<diagnostic>"
+    }
+  },
+  "loc_legacy_close": {
+    "closed": true
+  },
+  "loc_context_close": {
+    "closed": true,
+    "released": {
+      "books": 4,
+      "pipelines": 1,
+      "txts": 1
+    }
+  },
+  "loc_context_closed": {
+    "error": {
+      "code": "CONTEXT_BAD_HANDLE",
+      "message": "<diagnostic>"
+    }
+  },
+  "loc_handle_closed": {
+    "error": {
+      "code": "BOOK_BAD_HANDLE",
+      "message": "<diagnostic>"
+    }
+  },
+  "pipeline_recovery_open": {
+    "handle": 41,
+    "recovered": [
+      {
+        "attempts": 0,
+        "book": "00000000-0000-4000-8000-000000000001",
+        "failedStage": null,
+        "reason": "STORE_INDEX_INVALID: ${index}: 不是 PerchCore 索引文件",
+        "retryAtMs": null,
+        "state": "indexing"
+      },
+      {
+        "attempts": 0,
+        "book": "00000000-0000-4000-8000-000000000002",
+        "failedStage": null,
+        "reason": null,
+        "retryAtMs": null,
+        "state": "registered"
+      }
+    ]
+  },
+  "pipeline_recovery_state": {
+    "attempts": 0,
+    "failedStage": null,
+    "known": true,
+    "reason": "STORE_INDEX_INVALID: ${index}: 不是 PerchCore 索引文件",
+    "retryAtMs": null,
+    "state": "indexing"
+  },
+  "pipeline_recovery_enqueue": {
+    "attempts": 0,
+    "outcome": "queued",
+    "stage": "index",
+    "state": "indexing"
+  },
+  "pipeline_recovery_indexed": {
+    "book": "00000000-0000-4000-8000-000000000001",
+    "chunks": 1,
+    "outcome": "indexed",
+    "stage": "index",
+    "stats": {
+      "exhausted": 0,
+      "inFlight": 0,
+      "pendingIndex": 0,
+      "pendingRefine": 0
+    },
+    "tokens": 12
+  },
+  "pipeline_recovery_close": {
     "closed": true
   }
 }

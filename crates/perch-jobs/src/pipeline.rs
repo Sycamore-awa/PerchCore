@@ -1,5 +1,5 @@
 //! 把调度器（[`perch_pipeline::Scheduler`]）和执行者（本 crate 的
-//! [`refine`] / [`extract_text`] / [`index_book`]）接起来的**驱动循环**。
+//! [`refine`] / [`extract_text_with_source_map`] / [`index_book`]）接起来的**驱动循环**。
 //!
 //! # 为什么这段逻辑必须在 Rust 里
 //!
@@ -26,11 +26,14 @@
 use perch_model::{BookId, Format, ImportState};
 use perch_pipeline::{EnqueueOutcome, Gate, Policy, Priority, Scheduler, Stage};
 
-use crate::{BookText, ExtractOptions, JobsError, Refinement, extract_text, index_book, refine};
+use crate::{
+    BookText, ExtractOptions, JobsError, MappedBookText, Refinement, extract_text_with_source_map,
+    index_book, refine,
+};
 
 /// 平台侧需要提供的存储能力。
 ///
-/// 故意定得很窄：只包含驱动循环真正需要的四件事。
+/// 故意定得很窄：只包含驱动循环真正需要的读写与检查点能力。
 /// 错误用 `String` 而不是具体错误类型，因为这一层的失败原因只用于日志与上报。
 pub trait BookStore {
     /// 读出这本书的原始字节（平台从沙盒读）。
@@ -75,6 +78,17 @@ pub trait BookStore {
         index: perch_index::Index,
         text: BookText,
     ) -> Result<(), String>;
+
+    /// Save a stage-3 body together with its source map. Existing implementations
+    /// keep compiling and fall back to their original body-only persistence.
+    fn save_index_with_source_map(
+        &mut self,
+        book: BookId,
+        index: perch_index::Index,
+        text: MappedBookText,
+    ) -> Result<(), String> {
+        self.save_index(book, index, text.into_book_text())
+    }
 }
 
 /// 一次 [`Pipeline::step`] 的结果。
@@ -320,13 +334,13 @@ impl<S: BookStore> Pipeline<S> {
             Ok(format) => format,
             Err(error) => return self.fail(book, Stage::Index, error, now_ms),
         };
-        let text = match extract_text(&bytes, format, self.options) {
+        let text = match extract_text_with_source_map(&bytes, format, self.options) {
             Ok(text) => text,
             Err(error) => return self.fail(book, Stage::Index, describe(&error), now_ms),
         };
-        let index = index_book(&text, self.chunk_chars);
+        let index = index_book(text.book_text(), self.chunk_chars);
         let stats = index.stats();
-        if let Err(error) = self.store.save_index(book, index, text) {
+        if let Err(error) = self.store.save_index_with_source_map(book, index, text) {
             return self.io_fail(book, error, now_ms);
         }
         if let Err(error) = self.store.reset(book, ImportState::Ready) {

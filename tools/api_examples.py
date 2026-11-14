@@ -7,6 +7,8 @@ BOOK = "00000000-0000-4000-8000-000000000001"
 BAD_BOOK = "00000000-0000-4000-8000-000000000002"
 NOTE = "00000000-0000-4000-8000-000000000003"
 IO_BOOK = "00000000-0000-4000-8000-000000000004"
+LOC_BOOK = "00000000-0000-4000-8000-000000000005"
+LOC_TEXT = "\r\n甲\r\n\r\n\r\n乙😀é中文"
 
 
 def variable(name):
@@ -20,8 +22,10 @@ def capture(step, field):
 def fixtures():
     calls = []
 
-    def call(ident, method, args=None, expect=None, error=None, canonical=True):
+    def call(ident, method, args=None, expect=None, error=None, canonical=True, context=None):
         step = {"id": ident, "method": method, "args": args or {}, "canonical": canonical}
+        if context is not None:
+            step["context"] = context
         if expect is not None:
             step["expect"] = expect
         if error:
@@ -41,7 +45,7 @@ def fixtures():
     change = {"book": BOOK, "annotation": NOTE, "hlc": "1700000000001-0-tablet",
               "op": "set", "value": {"kind": "annotation", "annotation": annotation}}
     call("version", "version", expect={"core": "0.1.0"})
-    call("compatibility", "compatibility", expect={"abi": 1, "api": {"major": 1, "minor": 1},
+    call("compatibility", "compatibility", expect={"abi": 1, "api": {"major": 1, "minor": 4},
          "locator": {"read": [1], "write": 1},
          "artifacts": {"index": {"read": [1], "write": 1},
                        "text": {"read": [0, 1], "write": 1}}})
@@ -189,5 +193,159 @@ def fixtures():
             call(f"{kind}_quota_close_{n}", f"{kind}.close", {"handle": capture(f"{kind}_quota_{n}", "handle")}, {"closed": True})
         call(f"{kind}_quota_release", f"{kind}.open", args)
         call(f"{kind}_quota_release_close", f"{kind}.close", {"handle": capture(f"{kind}_quota_release", "handle")}, {"closed": True})
+    first_context = capture("context_first_open", "context")
+    second_context = capture("context_second_open", "context")
+    call("context_first_open", "context.open", expect={"context": 1})
+    call("context_second_open", "context.open", expect={"context": 2})
+    call("context_first_txt", "txt.open", {"path": variable("source")}, context=first_context)
+    call("context_second_txt", "txt.open", {"path": variable("source")}, context=second_context)
+    call("context_first_pipeline", "pipeline.open", {"out_dir": variable("context_out_first")},
+         {"recovered": []}, context=first_context)
+    call("context_second_pipeline", "pipeline.open", {"out_dir": variable("context_out_second")},
+         {"recovered": []}, context=second_context)
+    call("context_first_pipeline_quota", "pipeline.open", {"out_dir": variable("context_out_extra")},
+         error="PIPELINE_TOO_MANY_OPEN", context=first_context)
+    call("context_cross_use", "txt.slice", {
+        "handle": capture("context_first_txt", "handle"), "chars": 1,
+    }, error="CONTEXT_HANDLE_MISMATCH", context=second_context)
+    call("context_first_close", "context.close", {"context": first_context}, {
+        "closed": True, "released": {"books": 0, "txts": 1, "pipelines": 1},
+    })
+    call("context_second_slice", "txt.slice", {
+        "handle": capture("context_second_txt", "handle"), "chars": 1,
+    }, {"text": "中"}, context=second_context)
+    call("context_second_pipeline_status", "pipeline.status", {
+        "handle": capture("context_second_pipeline", "handle"),
+    }, {"idle": True}, context=second_context)
+    call("context_closed_call", "version", error="CONTEXT_BAD_HANDLE", context=first_context)
+    call("context_first_close_twice", "context.close", {"context": first_context}, {
+        "closed": False, "released": {"books": 0, "txts": 0, "pipelines": 0},
+    })
+    call("context_second_close", "context.close", {"context": second_context}, {
+        "closed": True, "released": {"books": 0, "txts": 1, "pipelines": 1},
+    })
+    call("inspect_path", "txt.inspect", {"path": variable("source")}, {"chars": 17, "lines": 3})
+    call("inspect_gbk", "txt.inspect", {"path": variable("gbk"), "encoding": "gbk"},
+         {"encoding": "GBK", "certain_encoding": True})
+    call("inspect_big5", "txt.inspect", {"path": variable("big5"), "encoding": "big5"},
+         {"encoding": "Big5", "certain_encoding": True})
+    call("inspect_large", "txt.inspect", {"path": variable("long_line")})
+    call("inspect_missing", "txt.inspect", {"path": variable("missing")}, error="TXT_IO")
+    call("inspect_encoding", "txt.inspect", {"path": variable("source"), "encoding": "invalid-label"}, error="TXT_UNKNOWN_ENCODING")
+    call("refine_path", "jobs.refine", {"path": variable("source"), "format": "txt"})
+    call("refine_epub_path", "jobs.refine", {"path": variable("epub"), "format": "epub"})
+    call("refine_path_limited", "jobs.refine", {"path": variable("source"), "max_chars": 3}, {"charCount": 3})
+    call("refine_path_missing", "jobs.refine", {"path": variable("missing")}, error="JOBS_IO")
+    call("book_path_missing", "book.open", {"path": variable("missing")}, error="BOOK_OPEN_IO")
+    for method, prefix in [("jobs.refine", "refine"), ("book.open", "book")]:
+        for label, args in [("neither", {}), ("both", {"path": variable("source"), "bytes_hex": ""}),
+                            ("null_path", {"path": None}), ("null_both", {"path": None, "bytes_hex": "00"})]:
+            call(f"{prefix}_path_{label}", method, args, error="FFI_BAD_ARGS", canonical=False)
+        call(f"{prefix}_path_bad_epub", method, {"path": variable("source"), "format": "epub"}, error="JOBS_EPUB")
+    path_context = capture("path_context", "context")
+    call("path_context", "context.open")
+    call("book_path", "book.open", {"path": variable("source"), "format": "txt", "chunk_chars": 0}, context=path_context)
+    call("book_path_search", "book.search", {"handle": capture("book_path", "handle"), "query": "中文"}, context=path_context)
+    call("book_epub_path", "book.open", {"path": variable("epub"), "format": "epub"}, context=path_context)
+    call("book_epub_path_search", "book.search", {"handle": capture("book_epub_path", "handle"), "query": "海风"}, context=path_context)
+    call("book_path_cross_context", "book.search", {"handle": capture("book_path", "handle"), "query": "中文"}, error="CONTEXT_HANDLE_MISMATCH")
+    call("path_context_close", "context.close", {"context": path_context},
+         {"closed": True, "released": {"books": 2, "txts": 0, "pipelines": 0}})
+
+    # Append LOC-01 calls so all 189 frozen v1.3 responses retain their handles.
+    loc_context = capture("loc_context", "context")
+
+    def loc_call(ident, method, args=None, expect=None, error=None, canonical=True):
+        call(ident, method, args, expect, error, canonical, context=loc_context)
+
+    def txt_point(chars, bytes):
+        return {"kind": "txt", "charOffset": chars, "byteOffset": bytes}
+
+    loc_handle = capture("loc_txt_open", "handle")
+    loc_range = {"handle": loc_handle, "char_start": capture("loc_txt_search", "hits.0.charStart"),
+                 "char_end": capture("loc_txt_search", "hits.0.charEnd")}
+    call("loc_context", "context.open")
+    loc_call("loc_txt_open", "book.open", {"bytes_hex": LOC_TEXT.encode().hex(), "format": "txt", "chunk_chars": 2}, {"charCount": 9})
+    loc_call("loc_txt_search", "book.search", {"handle": loc_handle, "query": "乙"})
+    loc_call("loc_txt", "book.locate", loc_range,
+             {"start": txt_point(9, 11), "end": txt_point(10, 14), "containsSynthetic": False})
+    loc_call("loc_txt_emoji", "book.locate", {"handle": loc_handle, "char_start": 4, "char_end": 5},
+             {"start": txt_point(10, 14), "end": txt_point(11, 18), "containsSynthetic": False})
+    loc_call("loc_txt_combining", "book.locate", {"handle": loc_handle, "char_start": 5, "char_end": 7},
+             {"start": txt_point(11, 18), "end": txt_point(13, 21), "containsSynthetic": False})
+    loc_call("loc_txt_collapsed", "book.locate", {"handle": loc_handle, "char_start": 2, "char_end": 3},
+             {"start": txt_point(5, 7), "end": txt_point(9, 11), "containsSynthetic": False})
+    for label, start, end in [("empty", 0, 0), ("reversed", 5, 4), ("past_end", 0, 10),
+                               ("negative", -1, 1), ("string", "0", 1), ("boolean", False, 1)]:
+        loc_call(f"loc_range_{label}", "book.locate", {"handle": loc_handle, "char_start": start, "char_end": end},
+                 error="BOOK_LOCATE_BAD_RANGE", canonical=label not in ("negative", "string", "boolean"))
+    loc_call("loc_range_missing", "book.locate", {"handle": loc_handle, "char_start": 0}, error="BOOK_LOCATE_BAD_RANGE", canonical=False)
+    call("loc_cross_context", "book.locate", loc_range, error="CONTEXT_HANDLE_MISMATCH")
+    loc_call("loc_txt_reader", "txt.open", {"path": variable("loc_source")})
+    loc_call("loc_txt_read", "txt.slice", {"handle": capture("loc_txt_reader", "handle"),
+             "start": capture("loc_txt", "start.charOffset"), "chars": 1}, {"text": "乙"})
+    loc_call("loc_wrong_kind", "book.locate", {"handle": capture("loc_txt_reader", "handle"), "char_start": 0, "char_end": 1}, error="HANDLE_WRONG_KIND")
+    loc_call("loc_txt_path_open", "book.open", {"path": variable("loc_source"), "format": "txt", "chunk_chars": 2})
+    loc_call("loc_txt_path", "book.locate", {**loc_range, "handle": capture("loc_txt_path_open", "handle")})
+
+    for encoding in ("gbk", "big5"):
+        loc_call(f"loc_{encoding}_open", "book.open", {"path": variable(encoding), "format": "txt"})
+        loc_call(f"loc_{encoding}_search", "book.search", {"handle": capture(f"loc_{encoding}_open", "handle"), "query": "中文"})
+        loc_call(f"loc_{encoding}", "book.locate", {"handle": capture(f"loc_{encoding}_open", "handle"),
+            "char_start": capture(f"loc_{encoding}_search", "hits.0.charStart"), "char_end": capture(f"loc_{encoding}_search", "hits.0.charEnd")})
+        loc_call(f"loc_{encoding}_close", "book.close", {"handle": capture(f"loc_{encoding}_open", "handle")})
+
+    loc_epub = capture("loc_epub_open", "handle")
+    loc_call("loc_epub_open", "book.open", {"path": variable("epub"), "format": "epub"})
+    loc_call("loc_epub_search", "book.search", {"handle": loc_epub, "query": "海风"})
+    loc_call("loc_epub", "book.locate", {"handle": loc_epub, "char_start": capture("loc_epub_search", "hits.0.charStart"), "char_end": capture("loc_epub_search", "hits.0.charEnd")},
+             {"start": {"kind": "epub", "href": "/OEBPS/text/ch01.xhtml", "scalarOffset": 0, "utf16Offset": 0},
+              "end": {"kind": "epub", "scalarOffset": 2, "utf16Offset": 2}, "containsSynthetic": False})
+    loc_call("loc_epub_cafe_search", "book.search", {"handle": loc_epub, "query": "café"})
+    loc_call("loc_epub_utf16", "book.locate", {"handle": loc_epub, "char_start": capture("loc_epub_cafe_search", "hits.0.charStart"), "char_end": capture("loc_epub_cafe_search", "hits.0.charEnd")},
+             {"start": {"scalarOffset": 5, "utf16Offset": 6}, "end": {"scalarOffset": 10, "utf16Offset": 11}, "containsSynthetic": False})
+    loc_call("loc_epub_synthetic", "book.locate", {"handle": loc_epub, "char_start": 3, "char_end": 4}, error="BOOK_SOURCE_UNMAPPABLE")
+    loc_call("loc_epub_inward_start", "book.locate", {"handle": loc_epub, "char_start": 3, "char_end": 6},
+             {"start": {"scalarOffset": 0, "utf16Offset": 0}, "end": {"scalarOffset": 2, "utf16Offset": 2}, "containsSynthetic": True})
+    loc_call("loc_epub_inward_end", "book.locate", {"handle": loc_epub, "char_start": 0, "char_end": 4},
+             {"start": {"scalarOffset": 0}, "end": {"scalarOffset": 3, "utf16Offset": 3}, "containsSynthetic": True})
+    loc_call("loc_epub_cross_chapters", "book.locate", {"handle": loc_epub, "char_start": 0, "char_end": capture("loc_epub_open", "charCount")},
+             {"start": {"href": "/OEBPS/text/ch01.xhtml"}, "end": {"href": "/OEBPS/text/ch02.xhtml"}, "containsSynthetic": True})
+
+    loc_pipe = capture("loc_pipeline_open", "handle")
+    loc_call("loc_pipeline_open", "pipeline.open", {"out_dir": variable("loc_out"), "chunk_chars": 2})
+    loc_call("loc_pipeline_enqueue", "pipeline.enqueue", {"handle": loc_pipe, "book": LOC_BOOK, "path": variable("loc_source"), "format": "txt"})
+    loc_call("loc_pipeline_refine", "pipeline.step", {"handle": loc_pipe, "now_ms": 1000}, {"outcome": "refined"})
+    loc_call("loc_pipeline_index", "pipeline.step", {"handle": loc_pipe, "now_ms": 2000}, {"outcome": "indexed"})
+    loc_call("loc_load", "book.load", {"index_path": variable("loc_index"), "text_path": variable("loc_text_json")})
+    loc_call("loc_load_search", "book.search", {"handle": capture("loc_load", "handle"), "query": "乙"})
+    loc_call("loc_loaded", "book.locate", {**loc_range, "handle": capture("loc_load", "handle")})
+    calls.append({"action": "source_map_variants"})
+    for variant, error in [("missing_map", "BOOK_SOURCE_MAP_MISSING"), ("future_map", "BOOK_SOURCE_MAP_UNSUPPORTED_VERSION"),
+                           ("bad_map", "BOOK_SOURCE_MAP_INVALID"), ("null_map", "BOOK_SOURCE_MAP_INVALID")]:
+        loc_call(f"loc_{variant}_load", "book.load", {"index_path": variable("loc_index"), "text_path": variable(variant)})
+        loc_call(f"loc_{variant}_search", "book.search", {"handle": capture(f"loc_{variant}_load", "handle"), "query": "乙"})
+        loc_call(f"loc_{variant}", "book.locate", {**loc_range, "handle": capture(f"loc_{variant}_load", "handle")}, error=error)
+        loc_call(f"loc_{variant}_close", "book.close", {"handle": capture(f"loc_{variant}_load", "handle")})
+    loc_call("loc_legacy_load", "book.load", {"index_path": variable("legacy_index"), "text_path": variable("legacy_text")})
+    loc_call("loc_legacy_search", "book.search", {"handle": capture("loc_legacy_load", "handle"), "query": "a"})
+    loc_call("loc_legacy", "book.locate", {"handle": capture("loc_legacy_load", "handle"), "char_start": 0, "char_end": 1}, error="BOOK_SOURCE_MAP_MISSING")
+    loc_call("loc_legacy_close", "book.close", {"handle": capture("loc_legacy_load", "handle")})
+    call("loc_context_close", "context.close", {"context": loc_context},
+         {"closed": True, "released": {"books": 4, "txts": 1, "pipelines": 1}})
+    loc_call("loc_context_closed", "book.locate", loc_range, error="CONTEXT_BAD_HANDLE")
+    call("loc_handle_closed", "book.locate", loc_range, error="BOOK_BAD_HANDLE")
+
+    # Append STORE-01 calls so all 256 v1.4 responses retain their handles.
+    calls.append({"action": "corrupt_index", "book": BOOK})
+    call("pipeline_recovery_open", "pipeline.open", {"out_dir": variable("out")})
+    call("pipeline_recovery_state", "pipeline.state", {"handle": capture("pipeline_recovery_open", "handle"),
+         "book": BOOK}, {"known": True, "state": "indexing", "attempts": 0})
+    call("pipeline_recovery_enqueue", "pipeline.enqueue", {"handle": capture("pipeline_recovery_open", "handle"),
+         "book": BOOK, "path": variable("source"), "format": "txt"},
+         {"outcome": "queued", "stage": "index", "state": "indexing", "attempts": 0})
+    call("pipeline_recovery_indexed", "pipeline.step", {"handle": capture("pipeline_recovery_open", "handle"),
+         "now_ms": 1700000000030}, {"outcome": "indexed", "stage": "index"})
+    call("pipeline_recovery_close", "pipeline.close", {"handle": capture("pipeline_recovery_open", "handle")}, {"closed": True})
     return {"description": "Replay in one fresh process per client; $var resolves paths/bytes, $ref resolves earlier results. canonical=false intentionally probes runtime permissiveness or malformed input.",
-            "source_text": TEXT, "calls": calls}
+            "source_text": TEXT, "location_text": LOC_TEXT, "calls": calls}

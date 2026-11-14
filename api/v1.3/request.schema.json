@@ -1,0 +1,1206 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:perchcore:api:v1.3:request",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "version"
+        },
+        "args": {
+          "type": "object",
+          "properties": {},
+          "required": [],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "method",
+        "args"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "compatibility"
+        },
+        "args": {
+          "type": "object",
+          "properties": {},
+          "required": [],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "method",
+        "args"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "context.open"
+        },
+        "args": {
+          "type": "object",
+          "properties": {},
+          "required": [],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "method",
+        "args"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "context.close"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "context": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 18446744073709551615,
+              "description": "当前进程的显式 context；由 context.open 返回，0 为不可关闭的内部 legacy 值。"
+            }
+          },
+          "required": [
+            "context"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "method",
+        "args"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "locator.validate"
+        },
+        "args": {
+          "$ref": "urn:perchcore:api:v1.3:common#/$defs/Locator"
+        }
+      },
+      "required": [
+        "method",
+        "args"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "fingerprint"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "size": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 18446744073709551615,
+              "description": "原文件字节数。"
+            },
+            "head_hex": {
+              "type": "string",
+              "pattern": "^(?:[0-9A-Fa-f]{2})*$",
+              "description": "原始文件字节的偶数位 ASCII hex，无 0x 前缀；大小写均可。"
+            },
+            "tail_hex": {
+              "type": "string",
+              "pattern": "^(?:[0-9A-Fa-f]{2})*$",
+              "description": "原始文件字节的偶数位 ASCII hex，无 0x 前缀；大小写均可。"
+            }
+          },
+          "required": [
+            "size",
+            "head_hex",
+            "tail_hex"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "method",
+        "args"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "jobs.refine"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "文件路径，由运行库所在进程访问；推荐绝对路径。"
+            },
+            "bytes_hex": {
+              "type": "string",
+              "pattern": "^(?:[0-9A-Fa-f]{2})*$",
+              "description": "原始文件字节的偶数位 ASCII hex，无 0x 前缀；大小写均可。"
+            },
+            "format": {
+              "type": "string",
+              "enum": [
+                "epub",
+                "txt",
+                "pdf"
+              ]
+            },
+            "max_chars": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 18446744073709551615,
+              "description": "抽取上限，按非空白 Unicode scalar 计数。",
+              "default": 5000000
+            }
+          },
+          "required": [],
+          "additionalProperties": false,
+          "oneOf": [
+            {
+              "required": [
+                "path"
+              ]
+            },
+            {
+              "required": [
+                "bytes_hex"
+              ]
+            }
+          ]
+        }
+      },
+      "required": [
+        "method",
+        "args"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "book.open"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "文件路径，由运行库所在进程访问；推荐绝对路径。"
+            },
+            "bytes_hex": {
+              "type": "string",
+              "pattern": "^(?:[0-9A-Fa-f]{2})*$",
+              "description": "原始文件字节的偶数位 ASCII hex，无 0x 前缀；大小写均可。"
+            },
+            "format": {
+              "type": "string",
+              "enum": [
+                "epub",
+                "txt",
+                "pdf"
+              ]
+            },
+            "chunk_chars": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 18446744073709551615,
+              "description": "索引分片的 Unicode scalar 数；0 在运行时回退为 4096。",
+              "default": 4096
+            }
+          },
+          "required": [],
+          "additionalProperties": false,
+          "oneOf": [
+            {
+              "required": [
+                "path"
+              ]
+            },
+            {
+              "required": [
+                "bytes_hex"
+              ]
+            }
+          ]
+        }
+      },
+      "required": [
+        "method",
+        "args"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "book.load"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "index_path": {
+              "type": "string",
+              "description": "文件路径，由运行库所在进程访问；推荐绝对路径。"
+            },
+            "text_path": {
+              "type": "string",
+              "description": "文件路径，由运行库所在进程访问；推荐绝对路径。"
+            }
+          },
+          "required": [
+            "index_path",
+            "text_path"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "method",
+        "args"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "book.search"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "handle": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 18446744073709551615,
+              "description": "当前进程的对象句柄，0 有效；属于创建它的 context，不能当作指针、布尔值或持久化 ID。"
+            },
+            "query": {
+              "type": "string"
+            },
+            "limit": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 18446744073709551615,
+              "description": "结果上限，0 返回空数组。",
+              "default": 50
+            }
+          },
+          "required": [
+            "handle",
+            "query"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "method",
+        "args"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "book.close"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "handle": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 18446744073709551615,
+              "description": "当前进程的对象句柄，0 有效；属于创建它的 context，不能当作指针、布尔值或持久化 ID。"
+            }
+          },
+          "required": [
+            "handle"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "method",
+        "args"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "txt.open"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "文件路径，由运行库所在进程访问；推荐绝对路径。"
+            },
+            "encoding": {
+              "type": "string",
+              "description": "可选 encoding_rs 编码标签，显式标签跳过探测。"
+            }
+          },
+          "required": [
+            "path"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "method",
+        "args"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "txt.slice"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "handle": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 18446744073709551615,
+              "description": "当前进程的对象句柄，0 有效；属于创建它的 context，不能当作指针、布尔值或持久化 ID。"
+            },
+            "start": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 18446744073709551615,
+              "description": "起点，Unicode scalar 偏移，可等于 EOF。",
+              "default": 0
+            },
+            "chars": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 20000,
+              "description": "请求 scalar 数，1..20,000。"
+            }
+          },
+          "required": [
+            "handle",
+            "chars"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "method",
+        "args"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "txt.locate"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "handle": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 18446744073709551615,
+              "description": "当前进程的对象句柄，0 有效；属于创建它的 context，不能当作指针、布尔值或持久化 ID。"
+            },
+            "char": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 18446744073709551615
+            }
+          },
+          "required": [
+            "handle",
+            "char"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "method",
+        "args"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "txt.offset"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "handle": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 18446744073709551615,
+              "description": "当前进程的对象句柄，0 有效；属于创建它的 context，不能当作指针、布尔值或持久化 ID。"
+            },
+            "locator": {
+              "$ref": "urn:perchcore:api:v1.3:common#/$defs/Locator"
+            }
+          },
+          "required": [
+            "handle",
+            "locator"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "method",
+        "args"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "txt.line"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "handle": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 18446744073709551615,
+              "description": "当前进程的对象句柄，0 有效；属于创建它的 context，不能当作指针、布尔值或持久化 ID。"
+            },
+            "char": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 18446744073709551615
+            }
+          },
+          "required": [
+            "handle",
+            "char"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "method",
+        "args"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "txt.close"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "handle": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 18446744073709551615,
+              "description": "当前进程的对象句柄，0 有效；属于创建它的 context，不能当作指针、布尔值或持久化 ID。"
+            }
+          },
+          "required": [
+            "handle"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "method",
+        "args"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "txt.analyze"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "bytes_hex": {
+              "type": "string",
+              "pattern": "^(?:[0-9A-Fa-f]{2})*$",
+              "description": "原始文件字节的偶数位 ASCII hex，无 0x 前缀；大小写均可。"
+            }
+          },
+          "required": [
+            "bytes_hex"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "method",
+        "args"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "txt.inspect"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "文件路径，由运行库所在进程访问；推荐绝对路径。"
+            },
+            "encoding": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "path"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "method",
+        "args"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "pipeline.open"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "out_dir": {
+              "type": "string",
+              "description": "产物根目录，一条管线单独拥有；按 book UUID 建子目录。"
+            },
+            "policy": {
+              "$ref": "urn:perchcore:api:v1.3:common#/$defs/Policy"
+            },
+            "max_chars": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 18446744073709551615,
+              "description": "抽取上限，按非空白 Unicode scalar 计数。",
+              "default": 5000000
+            },
+            "chunk_chars": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 18446744073709551615,
+              "description": "索引分片的 Unicode scalar 数；0 在运行时回退为 4096。",
+              "default": 4096
+            }
+          },
+          "required": [
+            "out_dir"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "method",
+        "args"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "pipeline.enqueue"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "handle": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 18446744073709551615,
+              "description": "当前进程的对象句柄，0 有效；属于创建它的 context，不能当作指针、布尔值或持久化 ID。"
+            },
+            "book": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "path": {
+              "type": "string",
+              "description": "文件路径，由运行库所在进程访问；推荐绝对路径。"
+            },
+            "format": {
+              "type": "string",
+              "enum": [
+                "epub",
+                "txt",
+                "pdf"
+              ]
+            },
+            "priority": {
+              "type": "string",
+              "enum": [
+                "urgent",
+                "normal",
+                "background"
+              ],
+              "description": "调度优先级。",
+              "default": "normal"
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "registered",
+                "refining",
+                "indexing",
+                "ready",
+                "failed"
+              ],
+              "description": "无已记录状态时使用。",
+              "default": "registered"
+            }
+          },
+          "required": [
+            "handle",
+            "book",
+            "path",
+            "format"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "method",
+        "args"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "pipeline.step"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "handle": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 18446744073709551615,
+              "description": "当前进程的对象句柄，0 有效；属于创建它的 context，不能当作指针、布尔值或持久化 ID。"
+            },
+            "now_ms": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 18446744073709551615,
+              "description": "UTC Unix epoch 毫秒；省略取系统当前时间。"
+            },
+            "gate": {
+              "$ref": "urn:perchcore:api:v1.3:common#/$defs/Gate"
+            }
+          },
+          "required": [
+            "handle"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "method",
+        "args"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "pipeline.status"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "handle": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 18446744073709551615,
+              "description": "当前进程的对象句柄，0 有效；属于创建它的 context，不能当作指针、布尔值或持久化 ID。"
+            }
+          },
+          "required": [
+            "handle"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "method",
+        "args"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "pipeline.state"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "handle": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 18446744073709551615,
+              "description": "当前进程的对象句柄，0 有效；属于创建它的 context，不能当作指针、布尔值或持久化 ID。"
+            },
+            "book": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "required": [
+            "handle",
+            "book"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "method",
+        "args"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "pipeline.promote"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "handle": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 18446744073709551615,
+              "description": "当前进程的对象句柄，0 有效；属于创建它的 context，不能当作指针、布尔值或持久化 ID。"
+            },
+            "book": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "priority": {
+              "type": "string",
+              "enum": [
+                "urgent",
+                "normal",
+                "background"
+              ],
+              "description": "调度优先级。",
+              "default": "normal"
+            }
+          },
+          "required": [
+            "handle",
+            "book"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "method",
+        "args"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "pipeline.retry"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "handle": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 18446744073709551615,
+              "description": "当前进程的对象句柄，0 有效；属于创建它的 context，不能当作指针、布尔值或持久化 ID。"
+            },
+            "book": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "priority": {
+              "type": "string",
+              "enum": [
+                "urgent",
+                "normal",
+                "background"
+              ],
+              "description": "调度优先级。",
+              "default": "normal"
+            }
+          },
+          "required": [
+            "handle",
+            "book"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "method",
+        "args"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "pipeline.cancel"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "handle": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 18446744073709551615,
+              "description": "当前进程的对象句柄，0 有效；属于创建它的 context，不能当作指针、布尔值或持久化 ID。"
+            },
+            "book": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "required": [
+            "handle",
+            "book"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "method",
+        "args"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "pipeline.close"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "handle": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 18446744073709551615,
+              "description": "当前进程的对象句柄，0 有效；属于创建它的 context，不能当作指针、布尔值或持久化 ID。"
+            }
+          },
+          "required": [
+            "handle"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "method",
+        "args"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "pdf.analyze"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "文件路径，由运行库所在进程访问；推荐绝对路径。"
+            },
+            "bytes_hex": {
+              "type": "string",
+              "pattern": "^(?:[0-9A-Fa-f]{2})*$",
+              "description": "原始文件字节的偶数位 ASCII hex，无 0x 前缀；大小写均可。"
+            }
+          },
+          "required": [],
+          "additionalProperties": false,
+          "oneOf": [
+            {
+              "required": [
+                "path"
+              ]
+            },
+            {
+              "required": [
+                "bytes_hex"
+              ]
+            }
+          ]
+        }
+      },
+      "required": [
+        "method",
+        "args"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "index.search"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "text": {
+              "type": "string"
+            },
+            "query": {
+              "type": "string"
+            },
+            "chunk_chars": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 18446744073709551615,
+              "description": "索引分片的 Unicode scalar 数；0 在运行时回退为 4096。",
+              "default": 4096
+            }
+          },
+          "required": [
+            "text",
+            "query"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "method",
+        "args"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "curl"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "page_w": {
+              "type": "number"
+            },
+            "page_h": {
+              "type": "number"
+            },
+            "corner": {
+              "type": "string",
+              "enum": [
+                "top_left",
+                "top_right",
+                "bottom_left",
+                "bottom_right"
+              ]
+            },
+            "drag_x": {
+              "type": "number"
+            },
+            "drag_y": {
+              "type": "number"
+            },
+            "radius": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "page_w",
+            "page_h",
+            "corner",
+            "drag_x",
+            "drag_y",
+            "radius"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "method",
+        "args"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "hlc.parse"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "hlc": {
+              "type": "string",
+              "description": "HLC 字符串，推荐非负十进制 wall-counter-device；解析和排序由 Rust 执行。"
+            }
+          },
+          "required": [
+            "hlc"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "method",
+        "args"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "sync.merge"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "local": {
+              "type": "array",
+              "items": {
+                "$ref": "urn:perchcore:api:v1.3:common#/$defs/Change"
+              },
+              "description": "缺省为空数组。",
+              "default": []
+            },
+            "remote": {
+              "type": "array",
+              "items": {
+                "$ref": "urn:perchcore:api:v1.3:common#/$defs/Change"
+              },
+              "description": "缺省为空数组。",
+              "default": []
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "method",
+        "args"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "sync.delta"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "state": {
+              "type": "array",
+              "items": {
+                "$ref": "urn:perchcore:api:v1.3:common#/$defs/Change"
+              },
+              "description": "缺省为空数组。",
+              "default": []
+            },
+            "since": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "description": "HLC 字符串，推荐非负十进制 wall-counter-device；解析和排序由 Rust 执行。"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "limit": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 18446744073709551615,
+              "description": "页大小，运行时 0 clamp 到 1。",
+              "default": 500
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "method",
+        "args"
+      ],
+      "additionalProperties": false
+    }
+  ]
+}

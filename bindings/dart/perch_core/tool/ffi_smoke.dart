@@ -65,7 +65,38 @@ Future<void> main(List<String> args) async {
   final compatibility = core.compatibility();
   check('C ABI 版本', compatibility['abi'], 1);
   check('JSON API major', (compatibility['api'] as Map)['major'], 1);
+  check('JSON API minor', (compatibility['api'] as Map)['minor'], 4);
   check('Locator 写入版本', (compatibility['locator'] as Map)['write'], 1);
+
+  final contextDir = Directory.systemTemp.createTempSync('perch-context-');
+  final contextFile = File('${contextDir.path}/book.txt')
+    ..writeAsStringSync('甲乙丙丁');
+  final firstContext = core.openContext();
+  final secondContext = core.openContext();
+  final firstTxt = core.invokeInContext(firstContext, 'txt.open', {
+    'path': contextFile.path,
+  });
+  final secondTxt = core.invokeInContext(secondContext, 'txt.open', {
+    'path': contextFile.path,
+  });
+  try {
+    core.invokeInContext(secondContext, 'txt.slice', {
+      'handle': firstTxt['handle'],
+      'chars': 1,
+    });
+    checkTrue('跨上下文句柄应被拒绝', false);
+  } on PerchCoreException catch (error) {
+    check('跨上下文错误码', error.code, 'CONTEXT_HANDLE_MISMATCH');
+  }
+  final firstClosed = core.closeContext(firstContext);
+  check('销毁上下文释放 TXT', (firstClosed['released'] as Map)['txts'], 1);
+  final secondSlice = core.invokeInContext(secondContext, 'txt.slice', {
+    'handle': secondTxt['handle'],
+    'chars': 1,
+  });
+  check('销毁一个上下文不影响另一个', secondSlice['text'], '甲');
+  core.closeContext(secondContext);
+  contextDir.deleteSync(recursive: true);
 
   // ---- 2) 错误必须作为数据返回，不能崩 ----
   stdout.writeln('[2] 错误处理');
@@ -572,6 +603,7 @@ Future<void> main(List<String> args) async {
   pipelineDir.deleteSync(recursive: true);
 
   await _typedSmoke(libraryPath);
+  await _sourceLocationSmoke(core, libraryPath);
 
   // ---- 汇总 ----
   stdout.writeln('');
@@ -593,6 +625,183 @@ String _uuidV4() {
   final hex = bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
   return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-'
       '${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20)}';
+}
+
+Future<void> _sourceLocationSmoke(PerchCore core, String libraryPath) async {
+  stdout.writeln('[18] 搜索命中回源文本');
+  const raw = '\r\n甲\r\n\r\n\r\n乙😀é中文';
+  final dir = Directory.systemTemp.createTempSync('perch-source-map-');
+  final file = File('${dir.path}/原文.txt')..writeAsStringSync(raw);
+  final services = PerchServices(
+    await PerchWorker.spawn(libraryPath: libraryPath),
+  );
+  final syncBook = core.openBookPath(file.path, format: 'txt', chunkChars: 2);
+  final syncHandle = syncBook['handle'] as int;
+  final reader = core.openTxt(file.path);
+  try {
+    final hits =
+        core.searchBook(handle: syncHandle, query: '乙')['hits'] as List;
+    final hit = BookSearchHit.fromJson(
+      (hits.single as Map).cast<String, dynamic>(),
+    );
+    final location = core.locateBook(
+      handle: syncHandle,
+      charStart: hit.charStart,
+      charEnd: hit.charEnd,
+    );
+    final start = location.start as TxtSourceEndpoint;
+    final end = location.end as TxtSourceEndpoint;
+    check('归一化索引偏移', hit.charStart, 3);
+    check('源解码字符偏移', start.charOffset, 9);
+    check('源解码 UTF-8 字节偏移', start.byteOffset, 11);
+    check('源终点字符偏移', end.charOffset, 10);
+    check(
+      '源字符区间可用阅读切片验证',
+      reader.slice(start.charOffset, end.charOffset - start.charOffset).text,
+      '乙',
+    );
+    check('TXT 不含合成分隔符', location.containsSynthetic, false);
+    final emoji = core.locateBook(handle: syncHandle, charStart: 4, charEnd: 5);
+    check('emoji 源 UTF-8 终点', (emoji.end as TxtSourceEndpoint).byteOffset, 18);
+    final combining = core.locateBook(
+      handle: syncHandle,
+      charStart: 5,
+      charEnd: 7,
+    );
+    check(
+      '组合字符占两个 scalar',
+      (combining.end as TxtSourceEndpoint).charOffset -
+          (combining.start as TxtSourceEndpoint).charOffset,
+      2,
+    );
+    try {
+      core.locateBook(handle: syncHandle, charStart: 0, charEnd: 0);
+      checkTrue('空定位区间必须失败', false);
+    } on PerchCoreException catch (error) {
+      check('空区间错误码', error.code, 'BOOK_LOCATE_BAD_RANGE');
+    }
+    final asyncBook = await services.openBookPath(
+      file.path,
+      format: 'txt',
+      chunkChars: 2,
+    );
+    final asyncHit = (await asyncBook.search('乙')).single;
+    final asyncLocation = await asyncBook.locate(asyncHit);
+    check(
+      'worker 回源字符与同步一致',
+      (asyncLocation.start as TxtSourceEndpoint).charOffset,
+      start.charOffset,
+    );
+    check(
+      'worker 回源字节与同步一致',
+      (asyncLocation.end as TxtSourceEndpoint).byteOffset,
+      end.byteOffset,
+    );
+    final pipeline = await services.openPipeline(
+      '${dir.path}/out',
+      chunkChars: 2,
+    );
+    final bookId = _uuidV4();
+    await pipeline.enqueue(book: bookId, path: file.path, format: 'txt');
+    await pipeline.step(nowMs: 1000);
+    await pipeline.step(nowMs: 2000);
+    final textPath = '${dir.path}/out/$bookId/text.json';
+    final indexPath = '${dir.path}/out/$bookId/index.bin';
+    final stored =
+        jsonDecode(File(textPath).readAsStringSync()) as Map<String, dynamic>;
+    check('导入落盘保留 text v1', stored['version'], 1);
+    check('导入落盘包含 sourceMap v1', (stored['sourceMap'] as Map)['version'], 1);
+    final loaded = await services.loadBook(
+      indexPath: indexPath,
+      textPath: textPath,
+    );
+    final reopened = await loaded.locate((await loaded.search('乙')).single);
+    check('落盘重开回源位置一致', (reopened.start as TxtSourceEndpoint).charOffset, 9);
+    // Source edits do not change the already indexed source version.
+    file.writeAsStringSync('changed source');
+    final snapshot = await loaded.locate(asyncHit);
+    check(
+      '源文件变更后仍定位索引建立时版本',
+      (snapshot.start as TxtSourceEndpoint).charOffset,
+      9,
+    );
+    for (final variant in ['missing', 'future', 'invalid', 'null']) {
+      final value = jsonDecode(jsonEncode(stored)) as Map<String, dynamic>;
+      switch (variant) {
+        case 'missing':
+          value.remove('sourceMap');
+        case 'future':
+          (value['sourceMap'] as Map)['version'] = 2;
+        case 'invalid':
+          (value['sourceMap'] as Map)['runs'] = [];
+        case 'null':
+          value['sourceMap'] = null;
+      }
+      final path = '${dir.path}/$variant.json';
+      File(path).writeAsStringSync(jsonEncode(value));
+      final legacy = await services.loadBook(
+        indexPath: indexPath,
+        textPath: path,
+      );
+      final legacyHit = (await legacy.search('乙')).single;
+      check('$variant 映射问题不阻止搜索', legacyHit.charStart, 3);
+      try {
+        await legacy.locate(legacyHit);
+        checkTrue('$variant 精确定位必须失败', false);
+      } on PerchCoreException catch (error) {
+        check('$variant 定位错误码', error.code, switch (variant) {
+          'missing' => 'BOOK_SOURCE_MAP_MISSING',
+          'future' => 'BOOK_SOURCE_MAP_UNSUPPORTED_VERSION',
+          _ => 'BOOK_SOURCE_MAP_INVALID',
+        });
+      }
+      await legacy.close();
+    }
+    await asyncBook.close();
+    try {
+      await asyncBook.locate(asyncHit);
+      checkTrue('关闭后异步定位必须失败', false);
+    } on StateError {
+      checkTrue('关闭后异步定位立即失败', true);
+    }
+    final epub = core.openBook(hexBytes(sampleEpubHex), format: 'epub');
+    try {
+      final epubHit = BookSearchHit.fromJson(
+        ((core.searchBook(handle: epub['handle'] as int, query: '春天的花开')['hits']
+                        as List)
+                    .single
+                as Map)
+            .cast<String, dynamic>(),
+      );
+      final point = core.locateBook(
+        handle: epub['handle'] as int,
+        charStart: epubHit.charStart,
+        charEnd: epubHit.charEnd,
+      );
+      check(
+        'EPUB 返回类型化 href',
+        (point.start as EpubSourceEndpoint).href,
+        '/OEBPS/chap0.xhtml',
+      );
+      checkTrue(
+        'EPUB 返回文本节点路径',
+        (point.start as EpubSourceEndpoint).nodePath.startsWith('/'),
+      );
+      check(
+        'EPUB 字符区间',
+        (point.end as EpubSourceEndpoint).scalarOffset -
+            (point.start as EpubSourceEndpoint).scalarOffset,
+        5,
+      );
+    } finally {
+      core.closeBook(epub['handle'] as int);
+    }
+  } finally {
+    await services.close();
+    reader.close();
+    core.closeBook(syncHandle);
+    dir.deleteSync(recursive: true);
+  }
 }
 
 Future<void> _typedSmoke(String libraryPath) async {
@@ -618,6 +827,43 @@ Future<void> _typedSmoke(String libraryPath) async {
   }
   final fingerprint = await services.fingerprintPath(path.path);
   final bytes = path.readAsBytesSync();
+  final inspected = core.inspectTextPath(path.path);
+  final asyncInspected = await services.inspectTextPath(path.path);
+  check(
+    '路径 TXT 统计与 worker 一致',
+    jsonEncode(asyncInspected),
+    jsonEncode(inspected),
+  );
+  check('路径 TXT 统计字符数', inspected['chars'], reader.chars);
+  checkTrue('路径 TXT 统计不返回全文', !inspected.containsKey('text'));
+  final refinedPath = core.refineBookPath(path.path, format: 'txt');
+  check(
+    '路径精修与字节一致',
+    jsonEncode(refinedPath),
+    jsonEncode(core.refineBook(bytes, format: 'txt')),
+  );
+  check(
+    'worker 路径精修一致',
+    jsonEncode(await services.refineBookPath(path.path, format: 'txt')),
+    jsonEncode(refinedPath),
+  );
+  final pathBook = core.openBookPath(path.path, format: 'txt');
+  final asyncPathBook = await services.openBookPath(path.path, format: 'txt');
+  check('worker 路径索引字符数', asyncPathBook.charCount, pathBook['charCount']);
+  final pathHits =
+      core.searchBook(handle: pathBook['handle'] as int, query: '灯塔')['hits']
+          as List;
+  final asyncPathHits = await asyncPathBook.search('灯塔');
+  check('路径索引同步搜索命中数', pathHits.length, 1);
+  check('路径索引 worker 搜索命中数', asyncPathHits.length, 1);
+  core.closeBook(pathBook['handle'] as int);
+  // Leave the async book open to verify service shutdown reclaims path handles.
+  try {
+    await services.openBookPath('${dir.path}/missing.txt');
+    checkTrue('worker 路径 I/O 应失败', false);
+  } on PerchCoreException catch (error) {
+    check('worker 路径 I/O 错误码', error.code, 'BOOK_OPEN_IO');
+  }
   check(
     '异步路径指纹与同步一致',
     fingerprint.value,
@@ -680,6 +926,7 @@ Future<void> _typedSmoke(String libraryPath) async {
   final closeA = services.close(), closeB = services.close();
   check('关闭前接受的切片完成', (await acceptedSlice).text, '第');
   await Future.wait([closeA, closeB]);
+  check('服务关闭释放路径索引', core.closeBook(asyncPathBook.handle)['closed'], false);
   try {
     await reader.slice(0);
     checkTrue('关闭后句柄必须失败', false);
@@ -707,6 +954,21 @@ Future<void> _typedSmoke(String libraryPath) async {
     1,
   );
   await pdfServices.close();
+  final isolatedFirst = PerchServices(
+    await PerchWorker.spawn(libraryPath: libraryPath),
+  );
+  final isolatedSecond = PerchServices(
+    await PerchWorker.spawn(libraryPath: libraryPath),
+  );
+  final isolatedPipelines = await Future.wait([
+    isolatedFirst.openPipeline('${dir.path}/isolated-first'),
+    isolatedSecond.openPipeline('${dir.path}/isolated-second'),
+  ]);
+  checkTrue(
+    '多个 PerchServices 的 pipeline 配额互相隔离',
+    isolatedPipelines[0].handle != isolatedPipelines[1].handle,
+  );
+  await Future.wait([isolatedFirst.close(), isolatedSecond.close()]);
   // A real isolate exit must fail accepted requests and reject later requests.
   final doomed = await PerchWorker.spawn(libraryPath: libraryPath);
   final requests = List.generate(

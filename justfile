@@ -62,6 +62,9 @@ bench corpus="examples/data/corpus":
 bench-all corpus="examples/data/corpus":
     python3 tools/bench.py --corpus {{corpus}} --clients rust,ctypes,dart,dart-worker
 
+bench-source-map corpus="examples/data/corpus": core-lib
+    python3 tools/bench_source_map.py --corpus {{corpus}}
+
 bench-performance scale="64":
     python3 tools/make_corpus.py --profile performance --scale {{scale}} --output target/performance-corpus
     python3 tools/bench.py --corpus target/performance-corpus --output target/base02/performance.json
@@ -90,6 +93,19 @@ ffi-smoke: core-lib
     dart pub get
     dart analyze
     dart run tool/ffi_smoke.dart "../../../target/release/${library}"
+    dart run example/reader_flow.dart "../../../target/release/${library}" ../../../examples/data/sample.txt 文字
+
+reader-flow: core-lib
+    #!/usr/bin/env bash
+    set -euo pipefail
+    case "$(uname -s)" in
+      Darwin) library=libperch_ffi.dylib ;;
+      Linux) library=libperch_ffi.so ;;
+      *) library=perch_ffi.dll ;;
+    esac
+    cd bindings/dart/perch_core
+    dart pub get
+    dart run example/reader_flow.dart "../../../target/release/${library}" ../../../examples/data/sample.txt 文字
 
 dart-example: core-lib
     #!/usr/bin/env bash

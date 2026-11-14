@@ -1,7 +1,8 @@
 // PerchCore 核心的 Dart 绑定。
 //
 // 契约（与 crates/perch-ffi 对应）：
-//   perch_call(method, args_json) -> result_json   （返回堆字符串，需释放）
+//   perch_call(method, args_json) -> result_json   （legacy 上下文）
+//   perch_context_call(context, method, args_json) -> result_json
 //   perch_string_free(ptr)
 //
 // 各平台加载方式不同：
@@ -18,10 +19,12 @@ import 'dart:ffi';
 import 'dart:io';
 
 import 'package:ffi/ffi.dart';
+import 'perch_locations.dart';
 
 // 后台 isolate 门面（UI 不被同步 FFI 堵住，见 docs/architecture.md「FFI 契约」）
 export 'perch_worker.dart';
 export 'perch_services.dart';
+export 'perch_locations.dart';
 
 /// `perch_call` 的 C 签名。
 typedef _PerchCallNative =
@@ -34,6 +37,24 @@ typedef _PerchCallNative =
 
 typedef _PerchCallDart =
     Pointer<Utf8> Function(
+      Pointer<Uint8> methodPtr,
+      int methodLen,
+      Pointer<Uint8> argsPtr,
+      int argsLen,
+    );
+
+typedef _PerchContextCallNative =
+    Pointer<Utf8> Function(
+      Uint64 context,
+      Pointer<Uint8> methodPtr,
+      IntPtr methodLen,
+      Pointer<Uint8> argsPtr,
+      IntPtr argsLen,
+    );
+
+typedef _PerchContextCallDart =
+    Pointer<Utf8> Function(
+      int context,
       Pointer<Uint8> methodPtr,
       int methodLen,
       Pointer<Uint8> argsPtr,
@@ -57,12 +78,25 @@ class PerchCoreException implements Exception {
   String toString() => 'PerchCoreException($code): $message';
 }
 
+/// 当前进程内的显式核心上下文，不是指针或持久化 ID。
+final class PerchContext {
+  const PerchContext(this.id);
+
+  final int id;
+
+  @override
+  String toString() => 'PerchContext($id)';
+}
+
 /// 核心的 Dart 门面。
 class PerchCore {
-  PerchCore._(this._call, this._free);
+  PerchCore._(this._library, this._call, this._free);
 
+  final DynamicLibrary _library;
   final _PerchCallDart _call;
   final _FreeDart _free;
+  _PerchContextCallDart? _contextCall;
+  bool _contextLookupAttempted = false;
 
   /// 按平台打开核心库。
   ///
@@ -70,6 +104,7 @@ class PerchCore {
   static PerchCore open({String? libraryPath}) {
     final library = _openLibrary(libraryPath);
     return PerchCore._(
+      library,
       library.lookupFunction<_PerchCallNative, _PerchCallDart>('perch_call'),
       library.lookupFunction<_FreeNative, _FreeDart>('perch_string_free'),
     );
@@ -96,6 +131,64 @@ class PerchCore {
   ///
   /// 出错时抛 [PerchCoreException]（错误码来自 Rust 侧，稳定可判断）。
   Map<String, dynamic> invoke(String method, [Map<String, dynamic>? args]) {
+    return _invoke(method, args, _call);
+  }
+
+  /// 在显式上下文中调用现有方法；JSON 参数与 [invoke] 完全相同。
+  Map<String, dynamic> invokeInContext(
+    PerchContext context,
+    String method, [
+    Map<String, dynamic>? args,
+  ]) {
+    final call = _requireContextCall();
+    return _invoke(
+      method,
+      args,
+      (methodPtr, methodLen, argsPtr, argsLen) =>
+          call(context.id, methodPtr, methodLen, argsPtr, argsLen),
+    );
+  }
+
+  /// 创建独立的句柄所有权与固定配额域。
+  PerchContext openContext() {
+    final result = invoke('context.open');
+    return PerchContext(result['context'] as int);
+  }
+
+  /// 销毁上下文及其全部对象。重复关闭返回 `closed:false`。
+  Map<String, dynamic> closeContext(PerchContext context) =>
+      invoke('context.close', {'context': context.id});
+
+  _PerchContextCallDart _requireContextCall() {
+    final existing = _contextCall;
+    if (existing != null) return existing;
+    if (_contextLookupAttempted) {
+      throw PerchCoreException(
+        'FFI_CONTEXT_UNAVAILABLE',
+        '动态库没有 perch_context_call；需要 JSON API v1.2 或更新版本',
+      );
+    }
+    _contextLookupAttempted = true;
+    try {
+      final loaded = _library
+          .lookupFunction<_PerchContextCallNative, _PerchContextCallDart>(
+            'perch_context_call',
+          );
+      _contextCall = loaded;
+      return loaded;
+    } on ArgumentError catch (error) {
+      throw PerchCoreException(
+        'FFI_CONTEXT_UNAVAILABLE',
+        '动态库没有 perch_context_call：$error',
+      );
+    }
+  }
+
+  Map<String, dynamic> _invoke(
+    String method,
+    Map<String, dynamic>? args,
+    _PerchCallDart call,
+  ) {
     final methodBytes = utf8.encode(method);
     final argsBytes = utf8.encode(jsonEncode(args ?? const {}));
 
@@ -105,7 +198,7 @@ class PerchCore {
       methodPtr.asTypedList(methodBytes.length).setAll(0, methodBytes);
       argsPtr.asTypedList(argsBytes.length).setAll(0, argsBytes);
 
-      final resultPtr = _call(
+      final resultPtr = call(
         methodPtr,
         methodBytes.length,
         argsPtr,
@@ -167,8 +260,16 @@ class PerchCore {
   /// ⚠️ 它要 `bytes_hex`，而且把**全文**当 JSON 字符串吐回来：
   /// 一个 10MB 的 TXT 在边界上要变成 20MB 的十六进制串再回来 10MB 文本。
   /// 阅读路径请用 [openTxt] + [TxtHandle.slice]（`docs/architecture.md`「句柄与生命周期」）。
+  /// 文件统计优先使用 [inspectTextPath]。
   Map<String, dynamic> analyzeText(List<int> bytes) =>
       invoke('txt.analyze', {'bytes_hex': _hex(bytes)});
+
+  /// 按路径返回 TXT 编码和统计，不传输全文、不创建句柄（API v1.3）。
+  Map<String, dynamic> inspectTextPath(String path, {String? encoding}) =>
+      invoke('txt.inspect', {
+        'path': path,
+        if (encoding != null) 'encoding': encoding,
+      });
 
   /// 打开一个 TXT 文件用于阅读（句柄化，**不建倒排索引**）。
   ///
@@ -223,6 +324,18 @@ class PerchCore {
     if (format != null) 'format': format,
   });
 
+  /// 核心直接读取文件并建索引，避免整本 bytes_hex（API v1.3）。
+  /// 返回的句柄用 [closeBook] 释放；抽取上限与 [openBook] 相同。
+  Map<String, dynamic> openBookPath(
+    String path, {
+    int? chunkChars,
+    String? format,
+  }) => invoke('book.open', {
+    'path': path,
+    if (chunkChars != null) 'chunk_chars': chunkChars,
+    if (format != null) 'format': format,
+  });
+
   /// Load a stage-3 index and its chapter map without rebuilding either one.
   Map<String, dynamic> loadBook({
     required String indexPath,
@@ -232,7 +345,7 @@ class PerchCore {
   /// 在已打开的索引里检索。
   ///
   /// 每条命中带一个**粗定位** `locator`（章节 href + 全书进度 + 命中原文）：
-  /// 精确位置需要阅读器在该章内按文本重锚定（见 `docs/architecture.md`「统一 Locator」）。
+  /// 使用 [locateBook] 将命中的索引区间映射回建立索引时的源文本（API v1.4）。
   Map<String, dynamic> searchBook({
     required int handle,
     required String query,
@@ -242,6 +355,20 @@ class PerchCore {
     'query': query,
     if (limit != null) 'limit': limit,
   });
+
+  /// Resolve a nonempty indexed Unicode scalar range to typed source endpoints.
+  /// Legacy artifacts without mappings throw BOOK_SOURCE_MAP_MISSING and need rebuilding.
+  BookSourceLocation locateBook({
+    required int handle,
+    required int charStart,
+    required int charEnd,
+  }) => BookSourceLocation.fromJson(
+    invoke('book.locate', {
+      'handle': handle,
+      'char_start': charStart,
+      'char_end': charEnd,
+    }),
+  );
 
   /// 关闭一本书的索引并释放内存。对已关闭的句柄调用是安全的（返回 false）。
   Map<String, dynamic> closeBook(int handle) =>
@@ -257,7 +384,8 @@ class PerchCore {
   /// 返回 `{title?, author?, language?, coverHref?, toc, spineCount, charCount,
   /// encoding?}`。
   ///
-  /// - `maxChars` 限制抽取正文的字符数（超限会被截断并置 `truncated`，不会 OOM）
+  /// - `maxChars` 限制抽取正文的字符数；精修结果不含 `truncated`，
+  ///   也不限制原文件读取和解码的内存。
   /// - `format` 取 `'epub'` / `'txt'` / `'pdf'`。**上层知道扩展名时应当传**：
   ///   不传就按内容嗅探，而嗅探会把一个损坏的 EPUB 当成纯文本收下。
   Map<String, dynamic> refineBook(
@@ -266,6 +394,17 @@ class PerchCore {
     String? format,
   }) => invoke('jobs.refine', {
     'bytes_hex': _hex(bytes),
+    if (maxChars != null) 'max_chars': maxChars,
+    if (format != null) 'format': format,
+  });
+
+  /// 核心直接读取文件并精修，结果与 [refineBook] 相同（API v1.3）。
+  Map<String, dynamic> refineBookPath(
+    String path, {
+    int? maxChars,
+    String? format,
+  }) => invoke('jobs.refine', {
+    'path': path,
     if (maxChars != null) 'max_chars': maxChars,
     if (format != null) 'format': format,
   });

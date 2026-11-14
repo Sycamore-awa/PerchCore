@@ -1,4 +1,4 @@
-/* Persistent public-ABI client: one method<TAB>JSON request per UTF-8 line. */
+/* Persistent public-ABI client: context<TAB>method<TAB>JSON per UTF-8 line. */
 #include "perch_core.h"
 
 #include <stdio.h>
@@ -54,13 +54,27 @@ int main(int argc, char **argv) {
         if (used > 0 && line[used - 1] == '\r') --used;
         line[used] = '\0';
         {
-            char *tab = memchr(line, '\t', used);
+            char *context_tab = memchr(line, '\t', used);
+            char *method_tab;
             char *result;
+            uint64_t context = 0;
             size_t method_len;
-            if (tab == NULL) { free(line); return 2; }
-            method_len = (size_t)(tab - line);
-            result = perch_call((const uint8_t *)line, method_len,
-                                (const uint8_t *)(tab + 1), used - method_len - 1);
+            if (context_tab == NULL) { free(line); return 2; }
+            method_tab = memchr(context_tab + 1, '\t', used - (size_t)(context_tab + 1 - line));
+            if (method_tab == NULL) { free(line); return 2; }
+            method_len = (size_t)(method_tab - context_tab - 1);
+            if (context_tab != line) {
+                char *end;
+                *context_tab = '\0';
+                context = (uint64_t)strtoull(line, &end, 10);
+                if (*end != '\0' || context == 0) { free(line); return 2; }
+                result = perch_context_call(context,
+                    (const uint8_t *)(context_tab + 1), method_len,
+                    (const uint8_t *)(method_tab + 1), used - (size_t)(method_tab + 1 - line));
+            } else {
+                result = perch_call((const uint8_t *)(context_tab + 1), method_len,
+                    (const uint8_t *)(method_tab + 1), used - (size_t)(method_tab + 1 - line));
+            }
             if (result == NULL) { free(line); return 1; }
             puts(result);
             perch_string_free(result);

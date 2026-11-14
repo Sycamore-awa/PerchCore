@@ -2,10 +2,11 @@
 //!
 //! # 为什么是单一入口
 //!
-//! 只暴露两个符号：
+//! ABI v1 保留两个原始符号，并从 JSON API v1.2 起增加上下文调用入口：
 //!
 //! ```text
 //! perch_call(method: utf8, args: json) -> json   // 返回堆字符串指针，调用方负责释放
+//! perch_context_call(context, method, args) -> json
 //! perch_string_free(ptr)
 //! ```
 //!
@@ -46,8 +47,10 @@ const CORE_VERSION: &str = env!("CARGO_PKG_VERSION");
 const ABI_VERSION: u16 = 1;
 /// JSON 契约 major：破坏现有方法才升级。
 const API_MAJOR: u16 = 1;
-/// JSON 契约 minor：新增 `compatibility` 方法。
-const API_MINOR: u16 = 1;
+/// JSON 契约 minor：搜索命中到 TXT/EPUB 源文本的精确区间映射。
+const API_MINOR: u16 = 4;
+/// 旧 `perch_call` 使用的隐式上下文；不暴露给调用方，也不能销毁。
+const LEGACY_CONTEXT: u64 = 0;
 
 /// 同时最多允许打开多少本书的索引。
 ///
@@ -76,9 +79,13 @@ const DEFAULT_SEARCH_LIMIT: usize = 50;
 
 /// 一本书的已打开状态：正文 + 章节目录 + 倒排索引。
 struct OpenBook {
-    text: perch_jobs::BookText,
+    text: perch_jobs::MappedBookText,
     index: perch_index::Index,
 }
+
+type SharedBook = std::sync::Arc<OpenBook>;
+type SharedTxt = std::sync::Arc<perch_txt::TxtDocument>;
+type SharedPipeline = std::sync::Arc<std::sync::Mutex<perch_jobs::Pipeline<perch_jobs::PathStore>>>;
 
 /// 句柄表里的一类东西。
 ///
@@ -88,11 +95,11 @@ struct OpenBook {
 /// 混成一个码会让排查和降级都变难（`docs/architecture.md`「句柄与生命周期」、`docs/storage.md`「pipeline FFI」）。
 enum OpenDoc {
     /// 已建索引的书：`book.open` 产出。
-    Book(OpenBook),
+    Book(SharedBook),
     /// 已解码的 TXT：`txt.open` 产出，**不建倒排索引**。
-    Txt(perch_txt::TxtDocument),
+    Txt(SharedTxt),
     /// 导入管线：`pipeline.open` 产出（调度 + 按路径读写的存储）。
-    Pipeline(perch_jobs::Pipeline<perch_jobs::PathStore>),
+    Pipeline(SharedPipeline),
 }
 
 impl OpenDoc {
@@ -112,8 +119,7 @@ impl OpenDoc {
 /// **句柄自增且永不复用**——这样"关掉之后又拿旧句柄调用"会得到
 /// `BOOK_BAD_HANDLE`，而不是误操作到另一个对象上。
 #[derive(Default)]
-struct Registry {
-    next: u64,
+struct ContextRegistry {
     open: std::collections::HashMap<u64, OpenDoc>,
     /// 当前打开的索引句柄数。
     books: usize,
@@ -121,6 +127,38 @@ struct Registry {
     txts: usize,
     /// 当前打开的管线句柄数。
     pipelines: usize,
+}
+
+#[derive(Debug, Default, PartialEq, Eq)]
+struct Released {
+    books: usize,
+    txts: usize,
+    pipelines: usize,
+}
+
+struct ClosedContext {
+    released: Released,
+    objects: Vec<OpenDoc>,
+}
+
+struct Registry {
+    next_context: Option<u64>,
+    next_handle: Option<u64>,
+    legacy: ContextRegistry,
+    contexts: std::collections::HashMap<u64, ContextRegistry>,
+    owners: std::collections::HashMap<u64, u64>,
+}
+
+impl Default for Registry {
+    fn default() -> Self {
+        Self {
+            next_context: Some(1),
+            next_handle: Some(0),
+            legacy: ContextRegistry::default(),
+            contexts: std::collections::HashMap::new(),
+            owners: std::collections::HashMap::new(),
+        }
+    }
 }
 
 static REGISTRY: std::sync::OnceLock<std::sync::Mutex<Registry>> = std::sync::OnceLock::new();
@@ -138,37 +176,126 @@ fn registry() -> std::sync::MutexGuard<'static, Registry> {
 }
 
 impl Registry {
-    /// 放进一个对象，返回新句柄。**分配与配额分开**：配额检查在调用方。
-    fn push(&mut self, doc: OpenDoc) -> u64 {
-        let handle = self.next;
-        self.next = self.next.saturating_add(1);
-        self.open.insert(handle, doc);
-        handle
+    fn create_context(&mut self) -> Result<u64, FfiError> {
+        let context = self
+            .next_context
+            .ok_or_else(|| FfiError::new("CONTEXT_ID_EXHAUSTED", "context 编号空间已经耗尽"))?;
+        self.next_context = context.checked_add(1);
+        self.contexts.insert(context, ContextRegistry::default());
+        Ok(context)
+    }
+
+    fn ensure_context(&self, context: u64) -> Result<(), FfiError> {
+        if context == LEGACY_CONTEXT || self.contexts.contains_key(&context) {
+            Ok(())
+        } else {
+            Err(FfiError::new(
+                "CONTEXT_BAD_HANDLE",
+                format!("上下文 {context} 不存在（可能已 close 或从未 open）"),
+            ))
+        }
+    }
+
+    fn context(&self, context: u64) -> Result<&ContextRegistry, FfiError> {
+        if context == LEGACY_CONTEXT {
+            Ok(&self.legacy)
+        } else {
+            self.contexts.get(&context).ok_or_else(|| {
+                FfiError::new(
+                    "CONTEXT_BAD_HANDLE",
+                    format!("上下文 {context} 不存在（可能已 close 或从未 open）"),
+                )
+            })
+        }
+    }
+
+    fn context_mut(&mut self, context: u64) -> Result<&mut ContextRegistry, FfiError> {
+        if context == LEGACY_CONTEXT {
+            Ok(&mut self.legacy)
+        } else {
+            self.contexts.get_mut(&context).ok_or_else(|| {
+                FfiError::new(
+                    "CONTEXT_BAD_HANDLE",
+                    format!("上下文 {context} 不存在（可能已 close 或从未 open）"),
+                )
+            })
+        }
+    }
+
+    fn close_context(&mut self, context: u64) -> Result<Option<ClosedContext>, FfiError> {
+        if context == LEGACY_CONTEXT {
+            return Err(FfiError::new(
+                "CONTEXT_LEGACY",
+                "legacy 上下文 0 不能显式关闭",
+            ));
+        }
+        let Some(closed) = self.contexts.remove(&context) else {
+            return Ok(None);
+        };
+        for handle in closed.open.keys() {
+            self.owners.remove(handle);
+        }
+        Ok(Some(ClosedContext {
+            released: Released {
+                books: closed.books,
+                txts: closed.txts,
+                pipelines: closed.pipelines,
+            },
+            objects: closed.open.into_values().collect(),
+        }))
+    }
+
+    fn ensure_owner(&self, context: u64, handle: u64) -> Result<(), FfiError> {
+        if let Some(owner) = self.owners.get(&handle)
+            && *owner != context
+        {
+            return Err(FfiError::new(
+                "CONTEXT_HANDLE_MISMATCH",
+                format!("句柄 {handle} 属于上下文 {owner}，不能由上下文 {context} 使用"),
+            ));
+        }
+        Ok(())
+    }
+
+    /// 放进一个对象，返回进程内全局唯一且永不复用的句柄。
+    fn push(&mut self, context: u64, doc: OpenDoc) -> Result<u64, FfiError> {
+        self.ensure_context(context)?;
+        let handle = self
+            .next_handle
+            .ok_or_else(|| FfiError::new("HANDLE_ID_EXHAUSTED", "对象句柄编号空间已经耗尽"))?;
+        self.next_handle = handle.checked_add(1);
+        self.context_mut(context)?.open.insert(handle, doc);
+        self.owners.insert(handle, context);
+        Ok(handle)
     }
 
     /// 登记一个索引句柄（受 [`MAX_OPEN_BOOKS`] 限制）。
-    fn insert_book(&mut self, book: OpenBook) -> Result<u64, FfiError> {
-        if self.books >= MAX_OPEN_BOOKS {
+    fn insert_book(&mut self, context: u64, book: impl Into<SharedBook>) -> Result<u64, FfiError> {
+        if self.context(context)?.books >= MAX_OPEN_BOOKS {
             return Err(FfiError::new(
                 "BOOK_TOO_MANY_OPEN",
                 format!("同时最多打开 {MAX_OPEN_BOOKS} 本书的索引，请先 book.close"),
             ));
         }
-        let handle = self.push(OpenDoc::Book(book));
-        self.books += 1;
+        let handle = self.push(context, OpenDoc::Book(book.into()))?;
+        self.context_mut(context)?.books += 1;
         Ok(handle)
     }
 
     /// 登记一个 TXT 阅读句柄（受 [`MAX_OPEN_TXT`] 限制）。
-    fn insert_txt(&mut self, document: perch_txt::TxtDocument) -> Result<u64, FfiError> {
-        if self.txts >= MAX_OPEN_TXT {
+    fn insert_txt(
+        &mut self,
+        context: u64,
+        document: impl Into<SharedTxt>,
+    ) -> Result<u64, FfiError> {
+        if self.context(context)?.txts >= MAX_OPEN_TXT {
             return Err(FfiError::new(
                 "TXT_TOO_MANY_OPEN",
                 format!("同时最多打开 {MAX_OPEN_TXT} 个 TXT，请先 txt.close"),
             ));
         }
-        let handle = self.push(OpenDoc::Txt(document));
-        self.txts += 1;
+        let handle = self.push(context, OpenDoc::Txt(document.into()))?;
+        self.context_mut(context)?.txts += 1;
         Ok(handle)
     }
 
@@ -176,34 +303,51 @@ impl Registry {
     /// 开两个只会让同一本书被两条队列同时处理。
     fn insert_pipeline(
         &mut self,
-        pipeline: perch_jobs::Pipeline<perch_jobs::PathStore>,
+        context: u64,
+        pipeline: impl Into<SharedPipeline>,
     ) -> Result<u64, FfiError> {
-        if self.pipelines >= 1 {
+        if self.context(context)?.pipelines >= 1 {
             return Err(FfiError::new(
                 "PIPELINE_TOO_MANY_OPEN",
                 "同时只允许开一条导入管线，请先 pipeline.close",
             ));
         }
-        let handle = self.push(OpenDoc::Pipeline(pipeline));
-        self.pipelines += 1;
+        let handle = self.push(context, OpenDoc::Pipeline(pipeline.into()))?;
+        self.context_mut(context)?.pipelines += 1;
         Ok(handle)
     }
 
     /// 摘掉一个句柄，并维护计数。
-    fn remove(&mut self, handle: u64) -> Option<OpenDoc> {
-        let doc = self.open.remove(&handle)?;
+    fn remove(&mut self, context: u64, handle: u64) -> Result<Option<OpenDoc>, FfiError> {
+        self.ensure_context(context)?;
+        self.ensure_owner(context, handle)?;
+        let doc = self.context_mut(context)?.open.remove(&handle);
+        let Some(doc) = doc else {
+            return Ok(None);
+        };
         match doc {
-            OpenDoc::Book(_) => self.books = self.books.saturating_sub(1),
-            OpenDoc::Txt(_) => self.txts = self.txts.saturating_sub(1),
-            OpenDoc::Pipeline(_) => self.pipelines = self.pipelines.saturating_sub(1),
+            OpenDoc::Book(_) => {
+                let registry = self.context_mut(context)?;
+                registry.books = registry.books.saturating_sub(1);
+            }
+            OpenDoc::Txt(_) => {
+                let registry = self.context_mut(context)?;
+                registry.txts = registry.txts.saturating_sub(1);
+            }
+            OpenDoc::Pipeline(_) => {
+                let registry = self.context_mut(context)?;
+                registry.pipelines = registry.pipelines.saturating_sub(1);
+            }
         }
-        Some(doc)
+        self.owners.remove(&handle);
+        Ok(Some(doc))
     }
 
     /// 借一个索引句柄；句柄不存在或**类型不对**时给不同的错误码。
-    fn book(&self, handle: u64) -> Result<&OpenBook, FfiError> {
-        match self.open.get(&handle) {
-            Some(OpenDoc::Book(book)) => Ok(book),
+    fn book(&self, context: u64, handle: u64) -> Result<SharedBook, FfiError> {
+        self.ensure_owner(context, handle)?;
+        match self.context(context)?.open.get(&handle) {
+            Some(OpenDoc::Book(book)) => Ok(std::sync::Arc::clone(book)),
             Some(other) => Err(FfiError::new(
                 "HANDLE_WRONG_KIND",
                 format!(
@@ -220,9 +364,10 @@ impl Registry {
     }
 
     /// 借一个 TXT 句柄。
-    fn txt(&self, handle: u64) -> Result<&perch_txt::TxtDocument, FfiError> {
-        match self.open.get(&handle) {
-            Some(OpenDoc::Txt(document)) => Ok(document),
+    fn txt(&self, context: u64, handle: u64) -> Result<SharedTxt, FfiError> {
+        self.ensure_owner(context, handle)?;
+        match self.context(context)?.open.get(&handle) {
+            Some(OpenDoc::Txt(document)) => Ok(std::sync::Arc::clone(document)),
             Some(other) => Err(FfiError::new(
                 "HANDLE_WRONG_KIND",
                 format!(
@@ -238,13 +383,12 @@ impl Registry {
         }
     }
 
-    /// 借一个管线句柄（可变：`step` / `enqueue` 都要改它）。
-    fn pipeline_mut(
-        &mut self,
-        handle: u64,
-    ) -> Result<&mut perch_jobs::Pipeline<perch_jobs::PathStore>, FfiError> {
-        match self.open.get_mut(&handle) {
-            Some(OpenDoc::Pipeline(pipeline)) => Ok(pipeline),
+    /// 取得一个管线租约。同一管线的操作由对象自己的锁串行，
+    /// 不再占用根注册表锁。
+    fn pipeline(&self, context: u64, handle: u64) -> Result<SharedPipeline, FfiError> {
+        self.ensure_owner(context, handle)?;
+        match self.context(context)?.open.get(&handle) {
+            Some(OpenDoc::Pipeline(pipeline)) => Ok(std::sync::Arc::clone(pipeline)),
             Some(other) => Err(FfiError::new(
                 "HANDLE_WRONG_KIND",
                 format!(
@@ -261,8 +405,18 @@ impl Registry {
     }
 
     /// 判断句柄是不是某一类（给 `*.close` 用，避免关错类型）。
-    fn kind_of(&self, handle: u64) -> Option<&'static str> {
-        self.open.get(&handle).map(OpenDoc::kind)
+    fn kind_of(&self, context: u64, handle: u64) -> Result<Option<&'static str>, FfiError> {
+        self.ensure_owner(context, handle)?;
+        Ok(self.context(context)?.open.get(&handle).map(OpenDoc::kind))
+    }
+}
+
+fn lock_pipeline(
+    pipeline: &SharedPipeline,
+) -> std::sync::MutexGuard<'_, perch_jobs::Pipeline<perch_jobs::PathStore>> {
+    match pipeline.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => poisoned.into_inner(),
     }
 }
 
@@ -300,13 +454,26 @@ impl FfiError {
 
 /// 主分发：方法名 + JSON 入参 → JSON 出参。
 pub fn dispatch(method: &str, args: &str) -> Value {
-    match call(method, args) {
+    dispatch_in_context(LEGACY_CONTEXT, method, args)
+}
+
+fn dispatch_in_context(context: u64, method: &str, args: &str) -> Value {
+    match call(context, method, args) {
         Ok(value) => value,
         Err(error) => error.to_value(),
     }
 }
 
-fn call(method: &str, args: &str) -> Result<Value, FfiError> {
+fn call(context: u64, method: &str, args: &str) -> Result<Value, FfiError> {
+    if context != LEGACY_CONTEXT {
+        registry().ensure_context(context)?;
+        if matches!(method, "context.open" | "context.close") {
+            return Err(FfiError::new(
+                "CONTEXT_METHOD_SCOPE",
+                format!("{method} 只能通过 perch_call 调用"),
+            ));
+        }
+    }
     let args: Value = if args.trim().is_empty() {
         json!({})
     } else {
@@ -337,6 +504,33 @@ fn call(method: &str, args: &str) -> Result<Value, FfiError> {
                 },
             },
         })),
+        "context.open" => {
+            let context = registry().create_context()?;
+            Ok(json!({ "context": context }))
+        }
+        "context.close" => {
+            let target = required_u64(&args, "context")?;
+            let closed = registry().close_context(target)?;
+            match closed {
+                Some(closed) => {
+                    let released = closed.released;
+                    // 大对象的最后一个 Arc 可能在这里释放；此时根锁已经归还。
+                    drop(closed.objects);
+                    Ok(json!({
+                        "closed": true,
+                        "released": {
+                            "books": released.books,
+                            "txts": released.txts,
+                            "pipelines": released.pipelines,
+                        },
+                    }))
+                }
+                None => Ok(json!({
+                    "closed": false,
+                    "released": { "books": 0, "txts": 0, "pipelines": 0 },
+                })),
+            }
+        }
 
         // ---- 定位（perch-model）----
         "locator.validate" => {
@@ -362,7 +556,7 @@ fn call(method: &str, args: &str) -> Result<Value, FfiError> {
 
         // ---- 阶段②精修（perch-jobs）----
         "jobs.refine" => {
-            let bytes = hex_to_bytes(required_str(&args, "bytes_hex")?)?;
+            let bytes = file_or_hex(&args, "JOBS_IO")?;
             let max_chars = args
                 .get("max_chars")
                 .and_then(Value::as_u64)
@@ -376,21 +570,25 @@ fn call(method: &str, args: &str) -> Result<Value, FfiError> {
 
         // 打开一本书：抽正文 + 建索引，返回句柄。后续搜索复用这个索引。
         "book.open" => {
-            let bytes = hex_to_bytes(required_str(&args, "bytes_hex")?)?;
+            let bytes = file_or_hex(&args, "BOOK_OPEN_IO")?;
             let chunk_chars = args
                 .get("chunk_chars")
                 .and_then(Value::as_u64)
                 .unwrap_or(perch_index::DEFAULT_CHUNK_CHARS);
             let format = format_arg(&args)?.unwrap_or_else(|| perch_jobs::sniff_format(&bytes));
-            let text =
-                perch_jobs::extract_text(&bytes, format, perch_jobs::ExtractOptions::default())
-                    .map_err(|error| FfiError::new(error.code(), error.to_string()))?;
-            let index = perch_jobs::index_book(&text, chunk_chars);
+            let text = perch_jobs::extract_text_with_source_map(
+                &bytes,
+                format,
+                perch_jobs::ExtractOptions::default(),
+            )
+            .map_err(|error| FfiError::new(error.code(), error.to_string()))?;
+            let index = perch_jobs::index_book(text.book_text(), chunk_chars);
             let stats = index.stats();
             let char_count = text.char_count();
-            let chapter_count = text.chapters.len();
-            let truncated = text.truncated;
-            let handle = registry().insert_book(OpenBook { text, index })?;
+            let chapter_count = text.book_text().chapters.len();
+            let truncated = text.book_text().truncated;
+            let book = std::sync::Arc::new(OpenBook { text, index });
+            let handle = registry().insert_book(context, std::sync::Arc::clone(&book))?;
             Ok(json!({
                 "handle": handle,
                 "charCount": char_count,
@@ -410,9 +608,9 @@ fn call(method: &str, args: &str) -> Result<Value, FfiError> {
             let text_json = std::fs::read(text_path).map_err(|error| {
                 FfiError::new("BOOK_LOAD_IO", format!("读取搜索定位文本失败: {error}"))
             })?;
-            let text = perch_jobs::book_text_from_slice(&text_json)
+            let text = perch_jobs::mapped_book_text_from_slice(&text_json)
                 .map_err(|error| FfiError::new(error.code(), error.to_string()))?;
-            if index.text() != text.text {
+            if index.text() != text.book_text().text {
                 return Err(FfiError::new(
                     "BOOK_INDEX_MISMATCH",
                     "index.bin 与 text.json 正文不一致",
@@ -420,9 +618,10 @@ fn call(method: &str, args: &str) -> Result<Value, FfiError> {
             }
             let stats = index.stats();
             let char_count = text.char_count();
-            let chapter_count = text.chapters.len();
-            let truncated = text.truncated;
-            let handle = registry().insert_book(OpenBook { text, index })?;
+            let chapter_count = text.book_text().chapters.len();
+            let truncated = text.book_text().truncated;
+            let book = std::sync::Arc::new(OpenBook { text, index });
+            let handle = registry().insert_book(context, std::sync::Arc::clone(&book))?;
             Ok(json!({
                 "handle": handle,
                 "charCount": char_count,
@@ -441,15 +640,14 @@ fn call(method: &str, args: &str) -> Result<Value, FfiError> {
                 .get("limit")
                 .and_then(Value::as_u64)
                 .map_or(DEFAULT_SEARCH_LIMIT, |n| n as usize);
-            let guard = registry();
-            let book = guard.book(handle)?;
+            let book = registry().book(context, handle)?;
             let hits: Vec<Value> = book
                 .index
                 .search(query)
                 .into_iter()
                 .take(limit)
                 .map(|hit| {
-                    let locator = perch_jobs::locate_hit(&book.text, &hit);
+                    let locator = perch_jobs::locate_hit(book.text.book_text(), &hit);
                     json!({
                         "charStart": hit.char_start,
                         "charEnd": hit.char_end,
@@ -461,13 +659,34 @@ fn call(method: &str, args: &str) -> Result<Value, FfiError> {
             Ok(json!({ "hits": hits }))
         }
 
+        // Resolve only the selected hit; keep the existing search response small.
+        "book.locate" => {
+            let handle = required_u64(&args, "handle")?;
+            let book = registry().book(context, handle)?;
+            let bad_range = || {
+                let error = perch_jobs::SourceMapError::BadRange;
+                FfiError::new(error.code(), error.to_string())
+            };
+            let char_start = args
+                .get("char_start")
+                .and_then(Value::as_u64)
+                .ok_or_else(bad_range)?;
+            let char_end = args
+                .get("char_end")
+                .and_then(Value::as_u64)
+                .ok_or_else(bad_range)?;
+            let location = perch_jobs::locate_source_range(&book.text, char_start, char_end)
+                .map_err(|error| FfiError::new(error.code(), error.to_string()))?;
+            serde_json::to_value(location).map_err(|error| FfiError::bad_args(error.to_string()))
+        }
+
         // 释放一本书的索引。
         "book.close" => {
             let handle = required_u64(&args, "handle")?;
             let mut guard = registry();
             // 类型不对就不关：拿 txt 句柄调 book.close 是调用方的 bug，
             // 静默关掉会让真正的持有者后续拿到 BAD_HANDLE，很难定位。
-            if let Some(kind) = guard.kind_of(handle)
+            if let Some(kind) = guard.kind_of(context, handle)?
                 && kind != "book"
             {
                 return Err(FfiError::new(
@@ -475,7 +694,9 @@ fn call(method: &str, args: &str) -> Result<Value, FfiError> {
                     format!("句柄 {handle} 是 {kind} 类型，请用 {kind}.close"),
                 ));
             }
-            let removed = guard.remove(handle).is_some();
+            let removed = guard.remove(context, handle)?;
+            drop(guard);
+            let removed = removed.is_some();
             Ok(json!({ "closed": removed }))
         }
 
@@ -485,18 +706,7 @@ fn call(method: &str, args: &str) -> Result<Value, FfiError> {
         // 而且把**全文**当 JSON 字符串吐回来。阅读路径只需要"打开一次 + 每次取一屏"，
         // 所以走 `txt.open` + `txt.slice`（`docs/architecture.md`「句柄与生命周期」）。
         "txt.open" => {
-            let path = required_str(&args, "path")?;
-            let document = match args.get("encoding").and_then(Value::as_str) {
-                // 显式指定编码：跳过探测（探测在极短的文本上会猜错）
-                Some(label) => {
-                    let bytes = std::fs::read(path).map_err(txt_io_error)?;
-                    perch_txt::TxtDocument::with_encoding(&bytes, label).ok_or_else(|| {
-                        FfiError::new("TXT_UNKNOWN_ENCODING", format!("不认识的编码: {label}"))
-                    })?
-                }
-                // 默认：BOM → 合法 UTF-8 → chardetng 猜测
-                None => perch_txt::TxtDocument::open(path).map_err(txt_io_error)?,
-            };
+            let document = txt_from_path(&args)?;
             let meta = document.meta();
             let chars = meta.chars;
             let lines = meta.lines;
@@ -504,7 +714,8 @@ fn call(method: &str, args: &str) -> Result<Value, FfiError> {
             let encoding = meta.encoding;
             let certain = meta.certain_encoding;
             let had_errors = meta.had_decode_errors;
-            let handle = registry().insert_txt(document)?;
+            let document = std::sync::Arc::new(document);
+            let handle = registry().insert_txt(context, std::sync::Arc::clone(&document))?;
             Ok(json!({
                 "handle": handle,
                 "chars": chars,
@@ -526,8 +737,7 @@ fn call(method: &str, args: &str) -> Result<Value, FfiError> {
                     format!("chars 必须在 1..={MAX_TXT_SLICE_CHARS} 之间（收到 {want}）"),
                 ));
             }
-            let guard = registry();
-            let document = guard.txt(handle)?;
+            let document = registry().txt(context, handle)?;
             let total = document.char_count();
             if start > total {
                 return Err(FfiError::new(
@@ -556,8 +766,7 @@ fn call(method: &str, args: &str) -> Result<Value, FfiError> {
         "txt.locate" => {
             let handle = required_u64(&args, "handle")?;
             let char_offset = required_u64(&args, "char")?;
-            let guard = registry();
-            let document = guard.txt(handle)?;
+            let document = registry().txt(context, handle)?;
             let locator = document.locator(char_offset).ok_or_else(|| {
                 FfiError::new(
                     "TXT_OUT_OF_RANGE",
@@ -580,8 +789,7 @@ fn call(method: &str, args: &str) -> Result<Value, FfiError> {
                     .ok_or_else(|| FfiError::bad_args("缺少 locator"))?,
             )
             .map_err(|error| FfiError::bad_args(format!("locator: {error}")))?;
-            let guard = registry();
-            let document = guard.txt(handle)?;
+            let document = registry().txt(context, handle)?;
             match document.char_offset_of_locator(&locator) {
                 Some(char_offset) => Ok(json!({ "char": char_offset, "resolved": true })),
                 None => Ok(json!({ "char": null, "resolved": false })),
@@ -592,8 +800,7 @@ fn call(method: &str, args: &str) -> Result<Value, FfiError> {
         "txt.line" => {
             let handle = required_u64(&args, "handle")?;
             let char_offset = required_u64(&args, "char")?;
-            let guard = registry();
-            let document = guard.txt(handle)?;
+            let document = registry().txt(context, handle)?;
             let line = document.line_index_at(char_offset).ok_or_else(|| {
                 FfiError::new(
                     "TXT_OUT_OF_RANGE",
@@ -651,7 +858,8 @@ fn call(method: &str, args: &str) -> Result<Value, FfiError> {
                 chunk_chars,
             )
             .map_err(|error| FfiError::new("PIPELINE_POLICY", error.to_string()))?;
-            let handle = registry().insert_pipeline(pipeline)?;
+            let pipeline = std::sync::Arc::new(std::sync::Mutex::new(pipeline));
+            let handle = registry().insert_pipeline(context, std::sync::Arc::clone(&pipeline))?;
             Ok(json!({ "handle": handle, "recovered": recovered }))
         }
 
@@ -667,8 +875,8 @@ fn call(method: &str, args: &str) -> Result<Value, FfiError> {
             })?;
             let priority = priority_arg(&args)?;
 
-            let mut guard = registry();
-            let pipeline = guard.pipeline_mut(handle)?;
+            let pipeline = registry().pipeline(context, handle)?;
+            let mut pipeline = lock_pipeline(&pipeline);
             pipeline.store_mut().register(book, path, format);
             let recorded = pipeline.store().state(book);
             let state = match &recorded {
@@ -696,8 +904,8 @@ fn call(method: &str, args: &str) -> Result<Value, FfiError> {
                 .unwrap_or_else(now_ms_now);
             let gate = gate_arg(&args)?;
 
-            let mut guard = registry();
-            let pipeline = guard.pipeline_mut(handle)?;
+            let pipeline = registry().pipeline(context, handle)?;
+            let mut pipeline = lock_pipeline(&pipeline);
             let outcome = pipeline.step(now, gate);
             if let perch_jobs::StepOutcome::IoFailed { error, .. } = &outcome {
                 return Err(FfiError::new("PIPELINE_IO", error.clone()));
@@ -709,8 +917,8 @@ fn call(method: &str, args: &str) -> Result<Value, FfiError> {
         // 队列概览（书架上的"正在精修 N 本"读这个）。
         "pipeline.status" => {
             let handle = required_u64(&args, "handle")?;
-            let mut guard = registry();
-            let pipeline = guard.pipeline_mut(handle)?;
+            let pipeline = registry().pipeline(context, handle)?;
+            let pipeline = lock_pipeline(&pipeline);
             let stats = pipeline.scheduler().stats();
             Ok(json!({
                 "idle": pipeline.is_idle(),
@@ -722,8 +930,8 @@ fn call(method: &str, args: &str) -> Result<Value, FfiError> {
         "pipeline.state" => {
             let handle = required_u64(&args, "handle")?;
             let book = book_arg(&args)?;
-            let mut guard = registry();
-            let pipeline = guard.pipeline_mut(handle)?;
+            let pipeline = registry().pipeline(context, handle)?;
+            let pipeline = lock_pipeline(&pipeline);
             match pipeline.store().state(book) {
                 Some(item) => Ok(json!({
                     "known": true,
@@ -742,8 +950,8 @@ fn call(method: &str, args: &str) -> Result<Value, FfiError> {
             let handle = required_u64(&args, "handle")?;
             let book = book_arg(&args)?;
             let priority = priority_arg(&args)?;
-            let mut guard = registry();
-            let pipeline = guard.pipeline_mut(handle)?;
+            let pipeline = registry().pipeline(context, handle)?;
+            let mut pipeline = lock_pipeline(&pipeline);
             pipeline.promote(book, priority);
             Ok(json!({ "promoted": true, "priority": priority_str(priority) }))
         }
@@ -753,8 +961,8 @@ fn call(method: &str, args: &str) -> Result<Value, FfiError> {
             let handle = required_u64(&args, "handle")?;
             let book = book_arg(&args)?;
             let priority = priority_arg(&args)?;
-            let mut guard = registry();
-            let pipeline = guard.pipeline_mut(handle)?;
+            let pipeline = registry().pipeline(context, handle)?;
+            let mut pipeline = lock_pipeline(&pipeline);
             let revived = pipeline
                 .revive(book, priority)
                 .map_err(|error| FfiError::new("PIPELINE_IO", error))?;
@@ -765,8 +973,8 @@ fn call(method: &str, args: &str) -> Result<Value, FfiError> {
         "pipeline.cancel" => {
             let handle = required_u64(&args, "handle")?;
             let book = book_arg(&args)?;
-            let mut guard = registry();
-            let pipeline = guard.pipeline_mut(handle)?;
+            let pipeline = registry().pipeline(context, handle)?;
+            let mut pipeline = lock_pipeline(&pipeline);
             pipeline.cancel(book);
             Ok(json!({ "cancelled": true }))
         }
@@ -774,7 +982,7 @@ fn call(method: &str, args: &str) -> Result<Value, FfiError> {
         "pipeline.close" => {
             let handle = required_u64(&args, "handle")?;
             let mut guard = registry();
-            if let Some(kind) = guard.kind_of(handle)
+            if let Some(kind) = guard.kind_of(context, handle)?
                 && kind != "pipeline"
             {
                 return Err(FfiError::new(
@@ -782,14 +990,16 @@ fn call(method: &str, args: &str) -> Result<Value, FfiError> {
                     format!("句柄 {handle} 是 {kind} 类型，请用 {kind}.close"),
                 ));
             }
-            let removed = guard.remove(handle).is_some();
+            let removed = guard.remove(context, handle)?;
+            drop(guard);
+            let removed = removed.is_some();
             Ok(json!({ "closed": removed }))
         }
 
         "txt.close" => {
             let handle = required_u64(&args, "handle")?;
             let mut guard = registry();
-            if let Some(kind) = guard.kind_of(handle)
+            if let Some(kind) = guard.kind_of(context, handle)?
                 && kind != "txt"
             {
                 return Err(FfiError::new(
@@ -797,24 +1007,33 @@ fn call(method: &str, args: &str) -> Result<Value, FfiError> {
                     format!("句柄 {handle} 是 {kind} 类型，请用 {kind}.close"),
                 ));
             }
-            let removed = guard.remove(handle).is_some();
+            let removed = guard.remove(context, handle)?;
+            drop(guard);
+            let removed = removed.is_some();
             Ok(json!({ "closed": removed }))
         }
 
         // ---- PDF（perch-pdf）----
         "pdf.analyze" => {
-            let bytes = match (args.get("path"), args.get("bytes_hex")) {
-                (Some(_), None) => std::fs::read(required_str(&args, "path")?)
-                    .map_err(|error| FfiError::new("PDF_IO", error.to_string()))?,
-                (None, Some(_)) => hex_to_bytes(required_str(&args, "bytes_hex")?)?,
-                _ => return Err(FfiError::bad_args("path 与 bytes_hex 必须且只能提供一个")),
-            };
+            let bytes = file_or_hex(&args, "PDF_IO")?;
             let info = perch_pdf::analyze(&bytes)
                 .map_err(|error| FfiError::new(error.code(), error.to_string()))?;
             serde_json::to_value(&info).map_err(|error| FfiError::bad_args(error.to_string()))
         }
 
         // ---- TXT（perch-txt）----
+        // 导入时只传路径、只返回统计；阅读仍使用 txt.open/slice。
+        "txt.inspect" => {
+            let document = txt_from_path(&args)?;
+            let meta = document.meta();
+            Ok(json!({
+                "encoding": meta.encoding,
+                "certain_encoding": meta.certain_encoding,
+                "chars": meta.chars,
+                "lines": meta.lines,
+                "had_decode_errors": meta.had_decode_errors,
+            }))
+        }
         "txt.analyze" => {
             let bytes = hex_to_bytes(required_str(&args, "bytes_hex")?)?;
             let document = perch_txt::TxtDocument::from_bytes(&bytes);
@@ -957,6 +1176,31 @@ fn call(method: &str, args: &str) -> Result<Value, FfiError> {
             "FFI_UNKNOWN_METHOD",
             format!("未知方法: {other}"),
         )),
+    }
+}
+
+/// 同步读取路径或解码旧字节入口；文件与缓冲区不保留到调用结束之后。
+/// 字段即使为 null 也算存在，避免错误输入静默选择另一个来源。
+fn file_or_hex(args: &Value, io_code: &'static str) -> Result<Vec<u8>, FfiError> {
+    match (args.get("path"), args.get("bytes_hex")) {
+        (Some(_), None) => std::fs::read(required_str(args, "path")?)
+            .map_err(|error| FfiError::new(io_code, error.to_string())),
+        (None, Some(_)) => hex_to_bytes(required_str(args, "bytes_hex")?),
+        _ => Err(FfiError::bad_args("path 与 bytes_hex 必须且只能提供一个")),
+    }
+}
+
+/// 共用 TXT 解码规则；对象构造与文件 I/O 均在根注册锁外执行。
+fn txt_from_path(args: &Value) -> Result<perch_txt::TxtDocument, FfiError> {
+    let path = required_str(args, "path")?;
+    match args.get("encoding").and_then(Value::as_str) {
+        Some(label) => {
+            let bytes = std::fs::read(path).map_err(txt_io_error)?;
+            perch_txt::TxtDocument::with_encoding(&bytes, label).ok_or_else(|| {
+                FfiError::new("TXT_UNKNOWN_ENCODING", format!("不认识的编码: {label}"))
+            })
+        }
+        None => perch_txt::TxtDocument::open(path).map_err(txt_io_error),
     }
 }
 
@@ -1240,6 +1484,35 @@ pub unsafe extern "C" fn perch_call(
     args_ptr: *const u8,
     args_len: usize,
 ) -> *mut std::ffi::c_char {
+    // SAFETY: 与本函数的公开契约相同。
+    unsafe { ffi_call(LEGACY_CONTEXT, method_ptr, method_len, args_ptr, args_len) }
+}
+
+/// 在显式上下文中调用一个方法。
+///
+/// # Safety
+///
+/// 指针、长度和返回值所有权与 [`perch_call`] 相同。`context` 必须来自
+/// `context.open`，且尚未由 `context.close` 销毁。
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn perch_context_call(
+    context: u64,
+    method_ptr: *const u8,
+    method_len: usize,
+    args_ptr: *const u8,
+    args_len: usize,
+) -> *mut std::ffi::c_char {
+    // SAFETY: 与本函数的公开契约相同。
+    unsafe { ffi_call(context, method_ptr, method_len, args_ptr, args_len) }
+}
+
+unsafe fn ffi_call(
+    context: u64,
+    method_ptr: *const u8,
+    method_len: usize,
+    args_ptr: *const u8,
+    args_len: usize,
+) -> *mut std::ffi::c_char {
     // 任何输入问题都不能 panic：panic 跨过 FFI 边界是未定义行为
     let method = match slice_to_str(method_ptr, method_len) {
         Some(text) => text,
@@ -1257,14 +1530,15 @@ pub unsafe extern "C" fn perch_call(
             );
         }
     };
-    to_c_string(&dispatch(method, args))
+    to_c_string(&dispatch_in_context(context, method, args))
 }
 
-/// 释放 [`perch_call`] 返回的字符串。
+/// 释放 [`perch_call`] 或 [`perch_context_call`] 返回的字符串。
 ///
 /// # Safety
 ///
-/// `ptr` 必须来自 [`perch_call`]，且只能释放一次；传空指针是安全的（直接返回）。
+/// `ptr` 必须来自 [`perch_call`] 或 [`perch_context_call`]，且只能释放一次；
+/// 传空指针是安全的（直接返回）。
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn perch_string_free(ptr: *mut std::ffi::c_char) {
     if ptr.is_null() {
@@ -1319,6 +1593,38 @@ mod tests {
         value
     }
 
+    fn call_ok_in(context: u64, method: &str, args: &str) -> Value {
+        let value = dispatch_in_context(context, method, args);
+        assert!(value.get("error").is_none(), "{method} 出错: {value}");
+        value
+    }
+
+    struct ContextGuard(Option<u64>);
+
+    impl ContextGuard {
+        fn open() -> Self {
+            let value = call_ok("context.open", "{}");
+            Self(Some(value["context"].as_u64().unwrap()))
+        }
+
+        fn id(&self) -> u64 {
+            self.0.unwrap()
+        }
+
+        fn close(&mut self) -> Value {
+            let context = self.0.take().unwrap();
+            call_ok("context.close", &json!({ "context": context }).to_string())
+        }
+    }
+
+    impl Drop for ContextGuard {
+        fn drop(&mut self) {
+            if let Some(context) = self.0.take() {
+                let _ = dispatch("context.close", &json!({ "context": context }).to_string());
+            }
+        }
+    }
+
     #[test]
     fn version_reports_core_version() {
         let value = call_ok("version", "{}");
@@ -1335,6 +1641,67 @@ mod tests {
         assert_eq!(value["locator"]["read"], json!([1]));
         assert_eq!(value["artifacts"]["index"]["read"], json!([1]));
         assert_eq!(value["artifacts"]["text"]["read"], json!([0, 1]));
+    }
+
+    #[test]
+    fn contexts_isolate_handles_and_destroy_owned_objects() {
+        let _serial = serial();
+        let mut first = ContextGuard::open();
+        let second = ContextGuard::open();
+        let first_id = first.id();
+        let path = txt_fixture_file("contexts", "甲乙丙丁");
+        let first_txt = call_ok_in(
+            first.id(),
+            "txt.open",
+            &json!({ "path": path.to_string_lossy() }).to_string(),
+        );
+        let second_txt = call_ok_in(
+            second.id(),
+            "txt.open",
+            &json!({ "path": path.to_string_lossy() }).to_string(),
+        );
+        let first_handle = first_txt["handle"].as_u64().unwrap();
+        let second_handle = second_txt["handle"].as_u64().unwrap();
+        assert_ne!(first_handle, second_handle);
+
+        let mismatch = dispatch_in_context(
+            second.id(),
+            "txt.slice",
+            &json!({ "handle": first_handle, "chars": 1 }).to_string(),
+        );
+        assert_eq!(mismatch["error"]["code"], "CONTEXT_HANDLE_MISMATCH");
+        let legacy_mismatch = dispatch(
+            "txt.slice",
+            &json!({ "handle": first_handle, "chars": 1 }).to_string(),
+        );
+        assert_eq!(legacy_mismatch["error"]["code"], "CONTEXT_HANDLE_MISMATCH");
+
+        let closed = first.close();
+        assert_eq!(closed["closed"], true);
+        assert_eq!(closed["released"]["txts"], 1);
+        let still_alive = call_ok_in(
+            second.id(),
+            "txt.slice",
+            &json!({ "handle": second_handle, "chars": 1 }).to_string(),
+        );
+        assert_eq!(still_alive["text"], "甲");
+        let after_close = dispatch_in_context(first_id, "version", "{}");
+        assert_eq!(after_close["error"]["code"], "CONTEXT_BAD_HANDLE");
+    }
+
+    #[test]
+    fn context_lifecycle_is_scoped_and_idempotent() {
+        let _serial = serial();
+        let mut context = ContextGuard::open();
+        let id = context.id();
+        let scoped = dispatch_in_context(id, "context.open", "{}");
+        assert_eq!(scoped["error"]["code"], "CONTEXT_METHOD_SCOPE");
+        let legacy = dispatch("context.close", r#"{"context":0}"#);
+        assert_eq!(legacy["error"]["code"], "CONTEXT_LEGACY");
+        assert_eq!(context.close()["closed"], true);
+        let again = call_ok("context.close", &json!({ "context": id }).to_string());
+        assert_eq!(again["closed"], false);
+        assert_eq!(again["released"]["books"], 0);
     }
 
     #[test]
@@ -1462,6 +1829,32 @@ mod tests {
 
         let value: Value = serde_json::from_str(&text).unwrap();
         assert_eq!(value["core"], CORE_VERSION);
+    }
+
+    #[test]
+    fn c_context_abi_round_trip_through_raw_pointers() {
+        let _serial = serial();
+        let mut context = ContextGuard::open();
+        let method = "version";
+        let args = "{}";
+        let result = unsafe {
+            perch_context_call(
+                context.id(),
+                method.as_ptr(),
+                method.len(),
+                args.as_ptr(),
+                args.len(),
+            )
+        };
+        assert!(!result.is_null());
+        let text = unsafe { std::ffi::CStr::from_ptr(result) }
+            .to_str()
+            .unwrap()
+            .to_owned();
+        unsafe { perch_string_free(result) };
+        let value: Value = serde_json::from_str(&text).unwrap();
+        assert_eq!(value["core"], CORE_VERSION);
+        assert_eq!(context.close()["closed"], true);
     }
 
     #[test]
@@ -1634,6 +2027,196 @@ mod tests {
     }
 
     #[test]
+    fn path_input_matches_bytes_for_corpus() {
+        let _serial = serial();
+        let context = ContextGuard::open();
+        let corpus = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../examples/data/corpus/inputs");
+        for (name, format, query) in [
+            ("utf8.txt", "txt", "海风"),
+            ("utf8-bom.txt", "txt", "海风"),
+            ("gbk.txt", "txt", "中文"),
+            ("big5.txt", "txt", "中文"),
+            ("cross-shard.txt", "txt", "中文"),
+            ("epub2.epub", "epub", "海风"),
+            ("epub3.epub", "epub", "海风"),
+        ] {
+            let path = corpus.join(name);
+            let bytes = std::fs::read(&path).unwrap();
+            let from_path = json!({"path": path, "format": format, "chunk_chars": 8});
+            let from_bytes = json!({"bytes_hex": hex(&bytes), "format": format, "chunk_chars": 8});
+            assert_eq!(
+                call_ok("jobs.refine", &from_path.to_string()),
+                call_ok("jobs.refine", &from_bytes.to_string()),
+                "{name} refinement"
+            );
+            let mut path_book = call_ok_in(context.id(), "book.open", &from_path.to_string());
+            let mut bytes_book = call_ok_in(context.id(), "book.open", &from_bytes.to_string());
+            let path_handle = path_book["handle"].as_u64().unwrap();
+            let bytes_handle = bytes_book["handle"].as_u64().unwrap();
+            path_book.as_object_mut().unwrap().remove("handle");
+            bytes_book.as_object_mut().unwrap().remove("handle");
+            assert_eq!(path_book, bytes_book, "{name} index stats");
+            let search = |handle| {
+                call_ok_in(
+                    context.id(),
+                    "book.search",
+                    &json!({"handle": handle, "query": query}).to_string(),
+                )
+            };
+            assert_eq!(search(path_handle), search(bytes_handle), "{name} search");
+            for handle in [path_handle, bytes_handle] {
+                call_ok_in(
+                    context.id(),
+                    "book.close",
+                    &json!({"handle": handle}).to_string(),
+                );
+            }
+            if format == "txt" {
+                let inspected = call_ok("txt.inspect", &json!({"path": path}).to_string());
+                let mut analyzed = call_ok(
+                    "txt.analyze",
+                    &json!({"bytes_hex": hex(&bytes)}).to_string(),
+                );
+                analyzed.as_object_mut().unwrap().remove("text");
+                assert_eq!(inspected, analyzed, "{name} TXT statistics");
+            }
+        }
+    }
+
+    #[test]
+    fn path_input_rejects_ambiguous_sources_and_reports_io() {
+        for (method, code) in [("jobs.refine", "JOBS_IO"), ("book.open", "BOOK_OPEN_IO")] {
+            for args in [
+                json!({}),
+                json!({"path": null}),
+                json!({"path": 1}),
+                json!({"path": "unused", "bytes_hex": ""}),
+                json!({"path": null, "bytes_hex": "00"}),
+                json!({"path": "unused", "bytes_hex": null}),
+            ] {
+                assert_eq!(
+                    dispatch(method, &args.to_string())["error"]["code"],
+                    "FFI_BAD_ARGS"
+                );
+            }
+            let missing = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("Cargo.toml/this-is-not-a-file");
+            assert_eq!(
+                dispatch(method, &json!({"path": missing}).to_string())["error"]["code"],
+                code
+            );
+        }
+    }
+
+    #[test]
+    fn path_input_preserves_parser_errors_and_extraction_limit() {
+        let _serial = serial();
+        let context = ContextGuard::open();
+        let path = txt_fixture_file("path-errors-中文", "中文🦀测试");
+        for method in ["jobs.refine", "book.open"] {
+            let bad = dispatch_in_context(
+                context.id(),
+                method,
+                &json!({"path": path, "format": "epub"}).to_string(),
+            );
+            assert_eq!(bad["error"]["code"], "JOBS_EPUB");
+            let unsupported = dispatch_in_context(
+                context.id(),
+                method,
+                &json!({"path": path, "format": "pdf"}).to_string(),
+            );
+            assert_eq!(unsupported["error"]["code"], "JOBS_UNSUPPORTED_FORMAT");
+        }
+        let args = json!({"path": path, "format": "txt", "max_chars": 3});
+        let limited = call_ok("jobs.refine", &args.to_string());
+        assert_eq!(limited, call_ok("jobs.refine",
+            &json!({"bytes_hex": hex("中文🦀测试".as_bytes()), "format": "txt", "max_chars": 3}).to_string()));
+        assert_eq!(limited["charCount"], 3);
+        std::fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn txt_inspect_has_bounded_output_and_no_handles() {
+        let _serial = serial();
+        let mut context = ContextGuard::open();
+        let corpus = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../examples/data/corpus/inputs");
+        let large = call_ok_in(
+            context.id(),
+            "txt.inspect",
+            &json!({"path": corpus.join("long-line.txt")}).to_string(),
+        );
+        assert!(large["chars"].as_u64().unwrap() > 20_000);
+        assert!(large.get("text").is_none());
+        assert!(large.get("handle").is_none());
+        assert!(large.to_string().len() < 256);
+        let gbk = call_ok(
+            "txt.inspect",
+            &json!({"path": corpus.join("gbk.txt"), "encoding": "gbk"}).to_string(),
+        );
+        assert_eq!(gbk["encoding"], "GBK");
+        assert_eq!(gbk["certain_encoding"], true);
+        let invalid = dispatch(
+            "txt.inspect",
+            &json!({"path": corpus.join("gbk.txt"), "encoding": "not-an-encoding"}).to_string(),
+        );
+        assert_eq!(invalid["error"]["code"], "TXT_UNKNOWN_ENCODING");
+        assert_eq!(
+            context.close()["released"],
+            json!({"books": 0, "txts": 0, "pipelines": 0})
+        );
+    }
+
+    #[test]
+    fn path_book_retains_text_after_source_disappears() {
+        let _serial = serial();
+        let context = ContextGuard::open();
+        let path = txt_fixture_file("path-lifetime", "中文🦀测试");
+        let opened = call_ok_in(
+            context.id(),
+            "book.open",
+            &json!({"path": path}).to_string(),
+        );
+        std::fs::remove_file(&path).unwrap();
+        let hits = call_ok_in(
+            context.id(),
+            "book.search",
+            &json!({"handle": opened["handle"], "query": "中文"}).to_string(),
+        );
+        assert_eq!(hits["hits"].as_array().unwrap().len(), 1);
+        assert_eq!(
+            dispatch(
+                "book.search",
+                &json!({"handle": opened["handle"], "query": "中文"}).to_string()
+            )["error"]["code"],
+            "CONTEXT_HANDLE_MISMATCH"
+        );
+    }
+
+    #[test]
+    fn large_path_input_reports_truncation_without_returning_text() {
+        let _serial = serial();
+        let context = ContextGuard::open();
+        let max_chars = perch_jobs::ExtractOptions::default().max_chars;
+        // 15 MB 原始 UTF-8；请求只有路径，从未生成 bytes_hex。
+        let text = "中".repeat(max_chars as usize + 1);
+        let path = txt_fixture_file("large-path-input", &text);
+        drop(text);
+        let args = json!({"path": path, "format": "txt"}).to_string();
+        assert!(args.len() < 256);
+        let book = call_ok_in(context.id(), "book.open", &args);
+        assert_eq!(book["truncated"], true);
+        assert_eq!(book["charCount"], max_chars);
+        assert!(book.get("text").is_none());
+        assert!(book.to_string().len() < 256);
+        let inspected = call_ok("txt.inspect", &json!({"path": path}).to_string());
+        assert_eq!(inspected["chars"], max_chars + 1);
+        assert!(inspected.to_string().len() < 256);
+        std::fs::remove_file(path).unwrap();
+    }
+
+    #[test]
     fn jobs_refine_honours_explicit_format() {
         // 显式声明是 epub，内容却是随便的字节 → 必须报 EPUB 解析失败，
         // 绝不能悄悄当成纯文本收下。
@@ -1794,6 +2377,175 @@ mod tests {
     }
 
     #[test]
+    fn book_locate_maps_search_offsets_to_the_decoded_txt_source() {
+        let _serial = serial();
+        let context = ContextGuard::open();
+        let opened = call_ok_in(context.id(), "book.open", &json!({
+            "bytes_hex": hex("\r\n甲\r\n\r\n\r\n乙😀é".as_bytes()), "format": "txt", "chunk_chars": 2,
+        }).to_string());
+        let handle = opened["handle"].as_u64().unwrap();
+        let hits = call_ok_in(
+            context.id(),
+            "book.search",
+            &json!({ "handle": handle, "query": "乙" }).to_string(),
+        );
+        let location = call_ok_in(context.id(), "book.locate", &json!({
+            "handle": handle, "char_start": hits["hits"][0]["charStart"], "char_end": hits["hits"][0]["charEnd"],
+        }).to_string());
+        assert_eq!(
+            location,
+            json!({
+                "start": { "kind": "txt", "charOffset": 9, "byteOffset": 11 },
+                "end": { "kind": "txt", "charOffset": 10, "byteOffset": 14 }, "containsSynthetic": false,
+            })
+        );
+        // The old search Locator deliberately retains its normalized offset.
+        assert_eq!(hits["hits"][0]["locator"]["perch"]["txtOffset"], 3);
+        for args in [
+            json!({ "handle": handle, "char_start": 0, "char_end": 0 }),
+            json!({ "handle": handle, "char_start": 4, "char_end": 2 }),
+            json!({ "handle": handle, "char_start": 0, "char_end": opened["charCount"].as_u64().unwrap() + 1 }),
+            json!({ "handle": handle, "char_start": -1, "char_end": 1 }),
+            json!({ "handle": handle, "char_start": "0", "char_end": 1 }),
+            json!({ "handle": handle, "char_start": 0 }),
+        ] {
+            assert_eq!(
+                dispatch_in_context(context.id(), "book.locate", &args.to_string())["error"]["code"],
+                "BOOK_LOCATE_BAD_RANGE"
+            );
+        }
+    }
+
+    #[test]
+    fn book_locate_uses_context_ownership_and_close_lease_semantics() {
+        let _serial = serial();
+        let mut first = ContextGuard::open();
+        let second = ContextGuard::open();
+        let opened = call_ok_in(
+            first.id(),
+            "book.open",
+            &json!({ "bytes_hex": hex("甲😀乙".as_bytes()) }).to_string(),
+        );
+        let handle = opened["handle"].as_u64().unwrap();
+        let args = json!({ "handle": handle, "char_start": 1, "char_end": 2 }).to_string();
+        assert_eq!(
+            dispatch_in_context(second.id(), "book.locate", &args)["error"]["code"],
+            "CONTEXT_HANDLE_MISMATCH"
+        );
+        assert_eq!(
+            dispatch("book.locate", &args)["error"]["code"],
+            "CONTEXT_HANDLE_MISMATCH"
+        );
+        let txt = registry()
+            .insert_txt(first.id(), perch_txt::TxtDocument::from_bytes(b"reader"))
+            .unwrap();
+        assert_eq!(
+            dispatch_in_context(
+                first.id(),
+                "book.locate",
+                &json!({ "handle": txt, "char_start": 0, "char_end": 1 }).to_string()
+            )["error"]["code"],
+            "HANDLE_WRONG_KIND"
+        );
+        let lease = registry().book(first.id(), handle).unwrap();
+        let expected = lease.text.locate(1, 2).unwrap();
+        call_ok_in(
+            first.id(),
+            "book.close",
+            &json!({ "handle": handle }).to_string(),
+        );
+        assert_eq!(
+            dispatch_in_context(first.id(), "book.locate", &args)["error"]["code"],
+            "BOOK_BAD_HANDLE"
+        );
+        assert_eq!(lease.text.locate(1, 2).unwrap(), expected);
+        let context_id = first.id();
+        first.close();
+        assert_eq!(
+            dispatch_in_context(context_id, "book.locate", &args)["error"]["code"],
+            "CONTEXT_BAD_HANDLE"
+        );
+        assert_eq!(lease.text.locate(1, 2).unwrap(), expected);
+    }
+
+    #[test]
+    fn book_load_defers_mapping_errors_and_preserves_existing_search_responses() {
+        let _serial = serial();
+        let context = ContextGuard::open();
+        let directory =
+            std::env::temp_dir().join(format!("perch-locate-load-{}", std::process::id()));
+        std::fs::create_dir_all(&directory).unwrap();
+        let text = perch_jobs::extract_txt_with_source_map(
+            "\r\n甲😀乙".as_bytes(),
+            perch_jobs::ExtractOptions::default(),
+        )
+        .unwrap();
+        let index_path = directory.join("index.bin");
+        let text_path = directory.join("text.json");
+        perch_jobs::index_book(text.book_text(), 2)
+            .save_to(&index_path)
+            .unwrap();
+        let stored: Value =
+            serde_json::from_slice(&perch_jobs::mapped_book_text_to_vec(&text).unwrap()).unwrap();
+        let mut expected_search = None;
+        for variant in ["valid", "missing", "future", "invalid", "null"] {
+            let mut value = stored.clone();
+            let error = match variant {
+                "missing" => {
+                    value.as_object_mut().unwrap().remove("sourceMap");
+                    Some("BOOK_SOURCE_MAP_MISSING")
+                }
+                "future" => {
+                    value["sourceMap"]["version"] = json!(2);
+                    Some("BOOK_SOURCE_MAP_UNSUPPORTED_VERSION")
+                }
+                "invalid" => {
+                    value["sourceMap"]["runs"] = json!([]);
+                    Some("BOOK_SOURCE_MAP_INVALID")
+                }
+                "null" => {
+                    value["sourceMap"] = Value::Null;
+                    Some("BOOK_SOURCE_MAP_INVALID")
+                }
+                _ => None,
+            };
+            std::fs::write(&text_path, serde_json::to_vec(&value).unwrap()).unwrap();
+            let loaded = call_ok_in(
+                context.id(),
+                "book.load",
+                &json!({ "index_path": index_path, "text_path": text_path }).to_string(),
+            );
+            let handle = loaded["handle"].as_u64().unwrap();
+            let search = call_ok_in(
+                context.id(),
+                "book.search",
+                &json!({ "handle": handle, "query": "乙" }).to_string(),
+            );
+            assert_eq!(
+                &search,
+                expected_search.get_or_insert_with(|| search.clone())
+            );
+            let args = json!({ "handle": handle, "char_start": 2, "char_end": 3 }).to_string();
+            if let Some(error) = error {
+                assert_eq!(
+                    dispatch_in_context(context.id(), "book.locate", &args)["error"]["code"],
+                    error
+                );
+            } else {
+                let location = call_ok_in(context.id(), "book.locate", &args);
+                assert_eq!(location["start"]["charOffset"], 4);
+                assert_eq!(location["start"]["byteOffset"], 9);
+            }
+            call_ok_in(
+                context.id(),
+                "book.close",
+                &json!({ "handle": handle }).to_string(),
+            );
+        }
+        std::fs::remove_dir_all(directory).ok();
+    }
+
+    #[test]
     fn book_search_miss_returns_empty() {
         let _serial = serial();
         let handle = open_book();
@@ -1843,20 +2595,138 @@ mod tests {
             )
             .unwrap();
             let index = perch_jobs::index_book(&book, 64);
-            handles.push(local.insert_book(OpenBook { text: book, index }).unwrap());
+            handles.push(
+                local
+                    .insert_book(
+                        LEGACY_CONTEXT,
+                        OpenBook {
+                            text: book.into(),
+                            index,
+                        },
+                    )
+                    .unwrap(),
+            );
         }
         let book =
             perch_jobs::extract_epub_text(&epub_fixture(), perch_jobs::ExtractOptions::default())
                 .unwrap();
         let index = perch_jobs::index_book(&book, 64);
         let error = local
-            .insert_book(OpenBook { text: book, index })
+            .insert_book(
+                LEGACY_CONTEXT,
+                OpenBook {
+                    text: book.into(),
+                    index,
+                },
+            )
             .unwrap_err();
         assert_eq!(error.code, "BOOK_TOO_MANY_OPEN");
 
         // 句柄互不相同且单调（永不复用）
         assert_eq!(handles.len(), MAX_OPEN_BOOKS);
         assert!(handles.windows(2).all(|pair| pair[0] < pair[1]));
+    }
+
+    #[test]
+    fn registry_quotas_are_per_context() {
+        let mut local = Registry::default();
+        let first = local.create_context().unwrap();
+        let second = local.create_context().unwrap();
+        let make_book = || {
+            let text = perch_jobs::extract_txt(
+                "上下文配额".as_bytes(),
+                perch_jobs::ExtractOptions::default(),
+            )
+            .unwrap();
+            OpenBook {
+                index: perch_index::Index::build(&text.text, 64),
+                text: text.into(),
+            }
+        };
+
+        for _ in 0..MAX_OPEN_BOOKS {
+            local.insert_book(first, make_book()).unwrap();
+        }
+        assert_eq!(
+            local.insert_book(first, make_book()).unwrap_err().code,
+            "BOOK_TOO_MANY_OPEN"
+        );
+        let second_handle = local.insert_book(second, make_book()).unwrap();
+        assert!(local.book(second, second_handle).is_ok());
+
+        let released = local.close_context(first).unwrap().unwrap();
+        assert_eq!(released.released.books, MAX_OPEN_BOOKS);
+        assert!(local.book(second, second_handle).is_ok());
+    }
+
+    #[test]
+    fn context_close_invalidates_handles_but_keeps_existing_leases_alive() {
+        let mut local = Registry::default();
+        let context = local.create_context().unwrap();
+        let text = perch_jobs::extract_txt(
+            "在途租约继续完成".as_bytes(),
+            perch_jobs::ExtractOptions::default(),
+        )
+        .unwrap();
+        let book = std::sync::Arc::new(OpenBook {
+            index: perch_index::Index::build(&text.text, 64),
+            text: text.into(),
+        });
+        let handle = local
+            .insert_book(context, std::sync::Arc::clone(&book))
+            .unwrap();
+        let lease = local.book(context, handle).unwrap();
+
+        let closed = local.close_context(context).unwrap().unwrap();
+        assert_eq!(closed.released.books, 1);
+        drop(closed.objects);
+        let error = match local.book(context, handle) {
+            Ok(_) => panic!("context.close 后不应再取得新租约"),
+            Err(error) => error,
+        };
+        assert_eq!(error.code, "CONTEXT_BAD_HANDLE");
+        assert_eq!(lease.index.search("租约").len(), 1);
+    }
+
+    #[test]
+    fn registry_reports_exhausted_context_ids_without_reuse() {
+        let mut local = Registry {
+            next_context: Some(u64::MAX),
+            ..Registry::default()
+        };
+
+        assert_eq!(local.create_context().unwrap(), u64::MAX);
+        let error = local.create_context().unwrap_err();
+        assert_eq!(error.code, "CONTEXT_ID_EXHAUSTED");
+        assert!(local.contexts.contains_key(&u64::MAX));
+    }
+
+    #[test]
+    fn registry_reports_exhausted_handle_ids_without_reuse() {
+        let mut local = Registry {
+            next_handle: Some(u64::MAX),
+            ..Registry::default()
+        };
+        let make_book = || {
+            let text = perch_jobs::extract_txt(
+                "句柄空间".as_bytes(),
+                perch_jobs::ExtractOptions::default(),
+            )
+            .unwrap();
+            OpenBook {
+                index: perch_index::Index::build(&text.text, 64),
+                text: text.into(),
+            }
+        };
+
+        assert_eq!(
+            local.insert_book(LEGACY_CONTEXT, make_book()).unwrap(),
+            u64::MAX
+        );
+        let error = local.insert_book(LEGACY_CONTEXT, make_book()).unwrap_err();
+        assert_eq!(error.code, "HANDLE_ID_EXHAUSTED");
+        assert!(local.book(LEGACY_CONTEXT, u64::MAX).is_ok());
+        assert_eq!(local.legacy.books, 1);
     }
 
     // ---------- PDF 结构 ----------
@@ -2150,44 +3020,53 @@ mod tests {
             let text =
                 perch_jobs::extract_txt(b"hello", perch_jobs::ExtractOptions::default()).unwrap();
             local
-                .insert_book(OpenBook {
-                    text,
-                    index: perch_index::Index::build("hello", 64),
-                })
+                .insert_book(
+                    LEGACY_CONTEXT,
+                    OpenBook {
+                        text: text.into(),
+                        index: perch_index::Index::build("hello", 64),
+                    },
+                )
                 .unwrap();
         }
         let text =
             perch_jobs::extract_txt(b"hello", perch_jobs::ExtractOptions::default()).unwrap();
         let error = local
-            .insert_book(OpenBook {
-                text,
-                index: perch_index::Index::build("hello", 64),
-            })
+            .insert_book(
+                LEGACY_CONTEXT,
+                OpenBook {
+                    text: text.into(),
+                    index: perch_index::Index::build("hello", 64),
+                },
+            )
             .unwrap_err();
         assert_eq!(error.code, "BOOK_TOO_MANY_OPEN");
 
         // 书配额满了，TXT 照开不误
         let handle = local
-            .insert_txt(perch_txt::TxtDocument::from_bytes("阅读优先".as_bytes()))
+            .insert_txt(
+                LEGACY_CONTEXT,
+                perch_txt::TxtDocument::from_bytes("阅读优先".as_bytes()),
+            )
             .unwrap();
-        assert_eq!(local.txt(handle).unwrap().char_count(), 4);
+        assert_eq!(local.txt(LEGACY_CONTEXT, handle).unwrap().char_count(), 4);
 
         // 但 TXT 自己也有上限
         for _ in 1..MAX_OPEN_TXT {
             local
-                .insert_txt(perch_txt::TxtDocument::from_bytes(b"x"))
+                .insert_txt(LEGACY_CONTEXT, perch_txt::TxtDocument::from_bytes(b"x"))
                 .unwrap();
         }
         let error = local
-            .insert_txt(perch_txt::TxtDocument::from_bytes(b"x"))
+            .insert_txt(LEGACY_CONTEXT, perch_txt::TxtDocument::from_bytes(b"x"))
             .unwrap_err();
         assert_eq!(error.code, "TXT_TOO_MANY_OPEN");
 
         // 关一个就把名额还回来
-        local.remove(handle);
+        local.remove(LEGACY_CONTEXT, handle).unwrap();
         assert!(
             local
-                .insert_txt(perch_txt::TxtDocument::from_bytes(b"x"))
+                .insert_txt(LEGACY_CONTEXT, perch_txt::TxtDocument::from_bytes(b"x"),)
                 .is_ok()
         );
     }
@@ -2229,6 +3108,96 @@ mod tests {
             "pipeline.step",
             &json!({ "handle": handle, "now_ms": now_ms }).to_string(),
         )
+    }
+
+    #[test]
+    fn blocked_pipeline_does_not_hold_root_registry_and_close_is_safe() {
+        let _serial = serial();
+        let pipeline_dir = pipeline_dirs("object-lock");
+        let txt_path = txt_fixture_file("object-lock", "甲乙丙丁");
+        let pipeline_context = ContextGuard::open();
+        let reader_context = ContextGuard::open();
+
+        let opened_pipeline = call_ok_in(
+            pipeline_context.id(),
+            "pipeline.open",
+            &json!({ "out_dir": pipeline_dir.join("out").to_string_lossy() }).to_string(),
+        );
+        let pipeline_handle = opened_pipeline["handle"].as_u64().unwrap();
+        let opened_txt = call_ok_in(
+            reader_context.id(),
+            "txt.open",
+            &json!({ "path": txt_path.to_string_lossy() }).to_string(),
+        );
+        let txt_handle = opened_txt["handle"].as_u64().unwrap();
+
+        // 人为占住管线自己的锁，模拟长时间 step。status 取到 Arc 租约后
+        // 会阻塞在对象锁，但根注册表已经释放。
+        let shared = registry()
+            .pipeline(pipeline_context.id(), pipeline_handle)
+            .unwrap();
+        let held = lock_pipeline(&shared);
+        let (status_tx, status_rx) = std::sync::mpsc::channel();
+        let status_context = pipeline_context.id();
+        let status_thread = std::thread::spawn(move || {
+            let value = dispatch_in_context(
+                status_context,
+                "pipeline.status",
+                &json!({ "handle": pipeline_handle }).to_string(),
+            );
+            status_tx.send(value).unwrap();
+        });
+
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+        while std::sync::Arc::strong_count(&shared) < 3 {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "pipeline.status 没有取得对象租约"
+            );
+            std::thread::yield_now();
+        }
+
+        let (read_tx, read_rx) = std::sync::mpsc::channel();
+        let read_context = reader_context.id();
+        let read_thread = std::thread::spawn(move || {
+            let value = dispatch_in_context(
+                read_context,
+                "txt.slice",
+                &json!({ "handle": txt_handle, "chars": 1 }).to_string(),
+            );
+            read_tx.send(value).unwrap();
+        });
+        let read = read_rx
+            .recv_timeout(std::time::Duration::from_secs(2))
+            .expect("另一 context 的 TXT 读取被 pipeline 对象锁阻塞");
+        assert_eq!(read["text"], "甲");
+
+        // close 从注册表立即摘除句柄；已取得租约的 status 仍可在解锁后完成。
+        let closed = call_ok_in(
+            pipeline_context.id(),
+            "pipeline.close",
+            &json!({ "handle": pipeline_handle }).to_string(),
+        );
+        assert_eq!(closed["closed"], true);
+        let rejected = dispatch_in_context(
+            pipeline_context.id(),
+            "pipeline.status",
+            &json!({ "handle": pipeline_handle }).to_string(),
+        );
+        assert_eq!(rejected["error"]["code"], "PIPELINE_BAD_HANDLE");
+
+        drop(held);
+        let in_flight = status_rx
+            .recv_timeout(std::time::Duration::from_secs(2))
+            .expect("已取得租约的 pipeline.status 未能完成");
+        assert!(in_flight.get("error").is_none(), "{in_flight}");
+        assert_eq!(in_flight["idle"], true);
+
+        status_thread.join().unwrap();
+        read_thread.join().unwrap();
+        drop(shared);
+        std::fs::remove_dir_all(pipeline_dir).ok();
+        std::fs::remove_dir_all(txt_path.parent().unwrap()).ok();
     }
 
     #[test]
@@ -2282,6 +3251,65 @@ mod tests {
         for name in ["state.json", "refinement.json", "index.bin", "text.json"] {
             assert!(book_dir.join(name).exists(), "缺少 {name}");
         }
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn pipeline_open_reports_and_rebuilds_damaged_ready_artifacts() {
+        let _serial = serial();
+        let dir = pipeline_dirs("artifact-recovery");
+        let book = perch_model::BookId::new();
+        let book_path = dir.join("books/recover.txt");
+        std::fs::write(&book_path, "损坏产物恢复后仍可搜索").unwrap();
+
+        {
+            let pipeline = open_pipeline(&dir);
+            call_ok(
+                "pipeline.enqueue",
+                &json!({
+                    "handle": pipeline.0,
+                    "book": book,
+                    "path": book_path.to_string_lossy(),
+                    "format": "txt",
+                })
+                .to_string(),
+            );
+            assert_eq!(step_pipeline(pipeline.0, 1_000)["outcome"], "refined");
+            assert_eq!(step_pipeline(pipeline.0, 2_000)["outcome"], "indexed");
+        }
+
+        let index_path = dir.join("out").join(book.to_string()).join("index.bin");
+        std::fs::write(&index_path, b"broken index").unwrap();
+        let reopened = call_ok(
+            "pipeline.open",
+            &json!({ "out_dir": dir.join("out") }).to_string(),
+        );
+        let recovered = &reopened["recovered"][0];
+        assert_eq!(recovered["book"].as_str().unwrap(), book.to_string());
+        assert_eq!(recovered["state"], "indexing");
+        assert!(
+            recovered["reason"]
+                .as_str()
+                .unwrap()
+                .starts_with("STORE_INDEX_INVALID")
+        );
+
+        let pipeline = PipelineGuard(reopened["handle"].as_u64().unwrap());
+        let queued = call_ok(
+            "pipeline.enqueue",
+            &json!({
+                "handle": pipeline.0,
+                "book": book,
+                "path": book_path.to_string_lossy(),
+                "format": "txt",
+            })
+            .to_string(),
+        );
+        assert_eq!(queued["state"], "indexing");
+        assert_eq!(queued["stage"], "index");
+        assert_eq!(step_pipeline(pipeline.0, 3_000)["outcome"], "indexed");
+        assert!(perch_index::Index::load_from(index_path).is_ok());
 
         std::fs::remove_dir_all(&dir).ok();
     }

@@ -2,13 +2,18 @@
 
 公共头文件为 [include/perch_core.h](../include/perch_core.h)，实际方法实现见 [perch-ffi](../crates/perch-ffi/src/lib.rs)。
 
-全部 31 个方法的参数、返回字段、默认值、单位和错误码见 [完整方法参考](api-reference.md)。机器可读契约与重放说明见 [api](../api/README.md)，包括 Draft 2020-12 Schema 和真实 C/Dart 响应样例。
+全部 35 个方法的参数、返回字段、默认值、单位和错误码见 [完整方法参考](api-reference.md)。机器可读契约与重放说明见 [api](../api/README.md)，包括 Draft 2020-12 Schema 和真实 C/Dart 响应样例。
 
 ```c
 char *perch_call(const uint8_t *method_ptr, size_t method_len,
                  const uint8_t *args_ptr, size_t args_len);
+char *perch_context_call(uint64_t context,
+                         const uint8_t *method_ptr, size_t method_len,
+                         const uint8_t *args_ptr, size_t args_len);
 void perch_string_free(char *ptr);
 ```
+
+`perch_call` 使用不可销毁的 legacy 上下文。新调用方先用 `perch_call("context.open", "{}")` 取得 context，再把它作为 `perch_context_call` 的第一个参数；业务方法名和 args JSON 不变。`context.close` 仍通过 `perch_call` 调用，并一次释放该 context 的全部对象。
 
 ## 内存与错误
 
@@ -16,7 +21,7 @@ void perch_string_free(char *ptr);
 
 任一输入指针为 NULL 或长度为 0 时，当前实现视其为空字符串；空 args（包括纯空白）视为 `{}`。空方法返回 `FFI_UNKNOWN_METHOD`。有效内存中的非法 UTF-8 分别返回 `FFI_BAD_METHOD_PTR` / `FFI_BAD_ARGS_PTR`。输入中的 NUL 也按长度参与解析，不能用 strlen 截断数据来代替实际字节长度。
 
-返回值是 Rust 分配的 NUL 结尾 UTF-8 JSON，必须用 `perch_string_free` 释放一次。不得用 C free，不能重复释放。NULL 返回值表示调用失败；`perch_string_free(NULL)` 安全。
+两个调用入口的返回值都是 Rust 分配的 NUL 结尾 UTF-8 JSON，必须用 `perch_string_free` 释放一次。不得用 C free，不能重复释放。NULL 返回值表示调用失败；`perch_string_free(NULL)` 安全。
 
 业务失败统一返回：
 
@@ -24,7 +29,7 @@ void perch_string_free(char *ptr);
 {"error":{"code":"FFI_BAD_ARGS","message":"缺少字符串字段 path"}}
 ```
 
-调用方先解析 error，再读取业务字段。错误码用于逻辑判断，message 用于说明。`version` 保持 `{"core":"0.1.0"}` 旧形状；`compatibility` 返回 C ABI v1、JSON API v1.1、Locator 及 index/text 的可读与写入版本。详细规则见 [版本与兼容策略](compatibility.md)。
+调用方先解析 error，再读取业务字段。错误码用于逻辑判断，message 用于说明。`version` 保持 `{"core":"0.1.0"}` 旧形状；`compatibility` 返回 C ABI v1、JSON API v1.4、Locator 及 index/text 的可读与写入版本。详细规则见 [版本与兼容策略](compatibility.md)。
 
 调用错误与任务失败分开：pipeline.step 的 `failed` / `exhausted` 是正常结果，带 reason；存储失败返回顶层 `PIPELINE_IO`。Dart `invoke` 将顶层 error 转为 `PerchCoreException(code,message)`，并在 finally 中释放 Rust 返回字符串。
 
@@ -32,15 +37,15 @@ void perch_string_free(char *ptr);
 
 | 方法组 | 方法 |
 |---|---|
-| 基础 | `version`、`compatibility`、`locator.validate`、`fingerprint` |
+| 基础 | `version`、`compatibility`、`context.open/close`、`locator.validate`、`fingerprint` |
 | 文本精修 | `jobs.refine` |
-| 搜索 | `book.open/load/search/close`、`index.search` |
-| TXT | `txt.open/slice/locate/offset/line/close`、`txt.analyze` |
+| 搜索 | `book.open/load/search/locate/close`、`index.search` |
+| TXT | `txt.open/slice/locate/offset/line/close`、`txt.analyze/inspect` |
 | PDF | `pdf.analyze` |
 | 导入调度 | `pipeline.open/enqueue/step/status/state/promote/retry/cancel/close` |
 | 可选算法对应接口 | `curl`、`hlc.parse`、`sync.merge/delta` |
 
-该列表、逐项参考与 Schema 覆盖同一组方法，CI 检查生成文件和 Rust 分发集合无漂移。Rust 统一入口的 optional features 不改变当前 `perch-ffi` 方法集合。
+该列表、逐项参考与当前 v1.4 Schema 覆盖同一组方法，CI 检查生成文件和 Rust 分发集合无漂移；保留 v1.1/v1.2/v1.3 Schema 冻结快照。Rust 统一入口的 optional features 不改变当前 `perch-ffi` 方法集合。
 
 ## 规范请求与实际解析
 
@@ -69,18 +74,22 @@ handle 值由运行时分配，包含 0，不能当作指针或布尔值。`star
 
 ## 搜索与持久化
 
-`book.open` 接收 bytes_hex，抽正文并建索引。它适合小样本，不应放进阅读首屏路径。导入管线可在后台生成 index.bin 与 text.json，再通过 book.load 按路径载入并反复 book.search。
+`book.open` 接收 path 或 bytes_hex，抽正文并建索引。路径输入避免整本十六进制传输，建索引仍应放在后台。导入管线可生成 index.bin 与 text.json，再通过 book.load 按路径载入并反复 book.search。
 
-book.load 会验证正文与索引一致。搜索命中定位需按 [架构中的字符和文本规则](architecture.md) 校验；PDF 不支持正文搜索。
+book.load 会验证正文与索引一致。`book.locate {handle,char_start,char_end}` 将搜索命中的非空 scalar 区间映射到建索引时的源文本，返回 start/end 两个端点及 containsSynthetic。TXT 包含原解码 charOffset/UTF-8 byteOffset，EPUB 包含 href/nodePath/scalarOffset/utf16Offset；跨章节保留各端点的 href。人工分隔符的端点向内吸附，只含合成内容时返回 `BOOK_SOURCE_UNMAPPABLE`。
 
-`pdf.analyze` 必须且只能提供 path 或 bytes_hex 中一个。大文件应优先使用 path。jobs.refine、book.open、txt.analyze 的 bytes_hex 会产生两倍原始字节长度的字符串；txt.analyze 还返回全文。
+旧产物缺少映射时仍可加载和搜索；精确定位分别用 `BOOK_SOURCE_MAP_MISSING`、`BOOK_SOURCE_MAP_UNSUPPORTED_VERSION`、`BOOK_SOURCE_MAP_INVALID` 报告映射问题，非法区间返回 `BOOK_LOCATE_BAD_RANGE`。调用不重读或自动重建源文件，已有 book.search 与旧 Locator 结果保持不变。坐标、截断和阅读切片规则见 [搜索命中回源文本](source-location.md)；PDF 不支持正文搜索。
 
-## 句柄与并发
+`jobs.refine`、`book.open`、`pdf.analyze` 必须且只能提供 path 或 bytes_hex 中一个。大文件优先使用 path；TXT 导入统计使用 `txt.inspect`，阅读使用 `txt.open/slice`。旧 `txt.analyze` 仍接收 bytes_hex 并返回全文。文件所有权、I/O 错误与边界见 [路径输入说明](io.md)。
 
-句柄属于当前进程，不能持久化后跨进程使用。错误类型包括 `*_BAD_HANDLE`、`HANDLE_WRONG_KIND` 和配额错误。拿错类型不会关闭其他对象；重复关闭返回 closed:false。
+## Context、句柄与并发
 
-book、txt、pipeline 在同一数字空间分配句柄，包含 0。关闭后通常不复用（计数器使用 u64 饱和递增），不能假定无限分配；当前固定配额为 8 个 book、4 个 txt、1 条 pipeline。关闭仅释放该对象，不删除源文件或已落盘产物；失效句柄不能再读取。
+context 与对象句柄都属于当前进程，不能持久化后跨进程使用。context 0 保留给 legacy 入口；显式 context 从 1 开始、关闭后不复用。对象句柄在整个进程内全局递增且不复用，同时记录所属 context。
 
-当前有状态调用由全局 Mutex 串行保护，pipeline.step 在执行期间可能阻塞其他句柄。业务配额固定；独立上下文、细粒度锁、取消和事件接口均在后续计划中。
+book、txt、pipeline 在同一数字空间分配句柄，包含 0。每个 context 独立拥有 8 个 book、4 个 txt、1 条 pipeline 的当前固定配额；一个 context 满额不占用另一个的名额。关闭单个对象只释放该对象；`context.close` 返回释放计数并成组释放其对象，都不删除源文件或已落盘产物。
 
-调用方协调同一对象的 use/close。Dart worker 按序处理请求；PerchServices.close 等待请求、释放所拥有句柄并关闭 worker。异常 isolate 退出不能自动回收 Rust 注册表资源。pipeline.cancel 撤出排队任务，不中断已执行的同步 step；产物目录由单拥有者管理，失败调用也可能创建目录或更新源路径登记。
+错误类型包括 `*_BAD_HANDLE`、`HANDLE_WRONG_KIND`、`CONTEXT_BAD_HANDLE`、`CONTEXT_HANDLE_MISMATCH` 和配额错误。跨 context 误用不会碰巧操作相同数字的另一个对象；拿错类型不会关闭其他对象；重复对象/context close 均幂等。
+
+根 Registry/Mutex 只管理 context、所有权、配额和对象租约；解析、I/O、搜索、定位与切片在根锁之外执行。book/TXT 只读共享，pipeline 按对象 Mutex 串行。close 摘除句柄后拒绝新请求，已经取得 Arc 租约的请求允许完成；取消、等待和事件接口属于后续按需启动的 CTX-03。
+
+调用方协调同一对象的 use/close。Dart worker 按序处理请求；每个 `PerchServices` 自动创建一个显式 context，close 等待请求、销毁 context 并关闭 worker。异常 isolate 退出仍不能自动调用 context.close；pipeline.cancel 撤出排队任务，不中断已执行的同步 step；产物目录由单拥有者管理，失败调用也可能创建目录或更新源路径登记。

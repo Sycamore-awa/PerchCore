@@ -41,9 +41,15 @@
 #![forbid(unsafe_code)]
 
 pub mod pipeline;
+pub mod source_map;
 pub mod store;
 
 pub use pipeline::{BookStore, Pipeline, StepOutcome, StepSummary};
+pub use source_map::{
+    MappedBookText, SOURCE_MAP_VERSION, SourceDocument, SourceEndpoint, SourceLocation, SourceMap,
+    SourceMapError, SourceRun, SourceSpan, locate_source_range, mapped_book_text_from_slice,
+    mapped_book_text_to_vec,
+};
 pub use store::{PathStore, Recovered, StateFile};
 
 use perch_epub::{
@@ -154,6 +160,8 @@ struct StoredBookText {
     version: u32,
     #[serde(flatten)]
     text: BookText,
+    #[serde(default, rename = "sourceMap")]
+    source_map: source_map::RawSourceMap,
 }
 
 /// 按当前 v1 形状序列化 `text.json`，不改变公开 [`BookText`] 字段。
@@ -174,9 +182,13 @@ pub fn book_text_to_vec(text: &BookText) -> Result<Vec<u8>, serde_json::Error> {
 ///
 /// JSON 损坏与不支持版本分别返回不同稳定错误码。
 pub fn book_text_from_slice(bytes: &[u8]) -> Result<BookText, BookTextIoError> {
+    read_stored_book_text(bytes).map(|stored| stored.text)
+}
+
+fn read_stored_book_text(bytes: &[u8]) -> Result<StoredBookText, BookTextIoError> {
     let stored: StoredBookText = serde_json::from_slice(bytes)?;
     match stored.version {
-        BOOK_TEXT_LEGACY_VERSION | BOOK_TEXT_VERSION => Ok(stored.text),
+        BOOK_TEXT_LEGACY_VERSION | BOOK_TEXT_VERSION => Ok(stored),
         other => Err(BookTextIoError::UnsupportedVersion(other)),
     }
 }
@@ -327,6 +339,18 @@ impl JobsError {
 /// 容器/OPF 解析失败返回 [`JobsError::Epub`]；一章都读不出来返回
 /// [`JobsError::NoContent`]。
 pub fn extract_epub_text(bytes: &[u8], options: ExtractOptions) -> Result<BookText, JobsError> {
+    extract_epub_text_with_source_map(bytes, options).map(MappedBookText::into_book_text)
+}
+
+/// Extract EPUB text with compact text-node mappings and synthetic separators.
+/// Node selection, separator placement, and truncation match [`extract_epub_text`].
+///
+/// # Errors
+/// See [`extract_epub_text`].
+pub fn extract_epub_text_with_source_map(
+    bytes: &[u8],
+    options: ExtractOptions,
+) -> Result<MappedBookText, JobsError> {
     let mut archive =
         EpubArchive::from_bytes(bytes.to_vec()).map_err(|error| JobsError::from_epub(&error))?;
     let opf_path = archive
@@ -341,6 +365,7 @@ pub fn extract_epub_text(bytes: &[u8], options: ExtractOptions) -> Result<BookTe
     let mut chapters: Vec<ChapterSpan> = Vec::new();
     let mut written: u64 = 0;
     let mut truncated = false;
+    let mut source_map = SourceMap::new(SourceDocument::Epub);
 
     for item in package.spine_items() {
         if !item.is_xhtml() {
@@ -366,6 +391,15 @@ pub fn extract_epub_text(bytes: &[u8], options: ExtractOptions) -> Result<BookTe
                 truncated = true;
                 break;
             }
+            source_map.push(
+                &node.text,
+                node_len,
+                SourceSpan::Epub {
+                    href: item.href.clone(),
+                    node_path: node.path.to_string(),
+                },
+            );
+            source_map.push("\n", 1, SourceSpan::Synthetic);
             text.push_str(&node.text);
             text.push('\n');
             written = written.saturating_add(node_len).saturating_add(1);
@@ -382,12 +416,15 @@ pub fn extract_epub_text(bytes: &[u8], options: ExtractOptions) -> Result<BookTe
     if chapters.is_empty() {
         return Err(JobsError::NoContent);
     }
-    Ok(BookText {
-        format: Format::Epub,
-        text,
-        chapters,
-        truncated,
-    })
+    Ok(MappedBookText::with_source_map(
+        BookText {
+            format: Format::Epub,
+            text,
+            chapters,
+            truncated,
+        },
+        Ok(source_map),
+    ))
 }
 
 /// 由内容**嗅探**格式。
@@ -445,6 +482,24 @@ pub fn extract_text(
     match format {
         Format::Epub => extract_epub_text(bytes, options),
         Format::Txt => extract_txt(bytes, options),
+        Format::Pdf => Err(JobsError::UnsupportedFormat {
+            format: format.as_str(),
+        }),
+    }
+}
+
+/// Extract an indexed body and its source map without changing [`BookText`].
+///
+/// # Errors
+/// See [`extract_text`].
+pub fn extract_text_with_source_map(
+    bytes: &[u8],
+    format: Format,
+    options: ExtractOptions,
+) -> Result<MappedBookText, JobsError> {
+    match format {
+        Format::Epub => extract_epub_text_with_source_map(bytes, options),
+        Format::Txt => extract_txt_with_source_map(bytes, options),
         Format::Pdf => Err(JobsError::UnsupportedFormat {
             format: format.as_str(),
         }),
@@ -525,11 +580,26 @@ fn count_visible_chars(text: &str) -> u64 {
 /// 为什么只压空行、不压行内空白：索引是字面量短语匹配（见 `perch-index`），
 /// 英文单词之间的空格、中文排版缩进如果被吞掉，会改变检索语义；而大段空行
 /// 只会把分片撑大、让 snippet 变成空白，压成一个空行反而更利于阅读与检索。
-fn normalize_txt_whitespace(raw: &str) -> String {
+fn normalize_txt_whitespace(raw: &str) -> (String, SourceMap) {
     let mut out = String::with_capacity(raw.len());
     let mut wrote_line = false;
     let mut blank_pending = false;
+    let mut source_char = 0;
+    let mut source_byte = 0usize;
+    let mut previous_newline = (0, 0, 0, 0);
+    let mut map = SourceMap::new(SourceDocument::Txt {
+        decoded_chars: 0,
+        decoded_bytes: raw.len() as u64,
+    });
     for_each_txt_line(raw, |line| {
+        let line_chars = line.chars().count() as u64;
+        let end_byte = source_byte + line.len();
+        let newline_bytes = match raw.as_bytes().get(end_byte) {
+            Some(b'\r') if raw.as_bytes().get(end_byte + 1) == Some(&b'\n') => 2,
+            Some(b'\r' | b'\n') => 1,
+            _ => 0,
+        };
+        let end_char = source_char + line_chars;
         if line.trim().is_empty() {
             // 只记录"这里有过空行"，真正输出要等到下一行非空——
             // 这样文末的空行会被自然丢弃，不必再 trim。
@@ -539,16 +609,66 @@ fn normalize_txt_whitespace(raw: &str) -> String {
         } else {
             if wrote_line {
                 out.push('\n');
+                push_txt_newline(&mut map, previous_newline);
                 if blank_pending {
                     out.push('\n');
+                    push_txt_newline(
+                        &mut map,
+                        (
+                            previous_newline.1,
+                            source_char,
+                            previous_newline.3,
+                            source_byte as u64,
+                        ),
+                    );
                 }
             }
             out.push_str(line);
+            map.push(
+                line,
+                line_chars,
+                SourceSpan::Txt {
+                    char_start: source_char,
+                    byte_start: source_byte as u64,
+                },
+            );
             wrote_line = true;
             blank_pending = false;
+            previous_newline = (
+                end_char,
+                end_char + newline_bytes,
+                end_byte as u64,
+                end_byte as u64 + newline_bytes,
+            );
         }
+        source_char = end_char + newline_bytes;
+        source_byte = end_byte + newline_bytes as usize;
     });
-    out
+    map.document = SourceDocument::Txt {
+        decoded_chars: source_char,
+        decoded_bytes: raw.len() as u64,
+    };
+    (out, map)
+}
+
+fn push_txt_newline(
+    map: &mut SourceMap,
+    (char_start, char_end, byte_start, byte_end): (u64, u64, u64, u64),
+) {
+    let source = if char_end - char_start == 1 && byte_end - byte_start == 1 {
+        SourceSpan::Txt {
+            char_start,
+            byte_start,
+        }
+    } else {
+        SourceSpan::TxtCollapsed {
+            char_start,
+            char_end,
+            byte_start,
+            byte_end,
+        }
+    };
+    map.push("\n", 1, source);
 }
 
 /// 按 `\n` / `\r\n` / `\r` 切行，回调收到**不含行尾换行符**的切片。
@@ -592,7 +712,14 @@ fn truncate_chars(text: &str, max_chars: u64) -> String {
 
 /// 把已解码的 TXT 正文归一化、截断，并包装成单章节的 [`BookText`]。
 fn build_txt_book_text(decoded: &str, options: ExtractOptions) -> Result<BookText, JobsError> {
-    let normalized = normalize_txt_whitespace(decoded);
+    build_txt_book_text_with_source_map(decoded, options).map(MappedBookText::into_book_text)
+}
+
+fn build_txt_book_text_with_source_map(
+    decoded: &str,
+    options: ExtractOptions,
+) -> Result<MappedBookText, JobsError> {
+    let (normalized, mut source_map) = normalize_txt_whitespace(decoded);
     let total = u64::try_from(normalized.chars().count()).unwrap_or(u64::MAX);
     let truncated = total > options.max_chars;
     let text = if truncated {
@@ -604,17 +731,23 @@ fn build_txt_book_text(decoded: &str, options: ExtractOptions) -> Result<BookTex
         return Err(JobsError::EmptyContent);
     }
     let char_count = u64::try_from(text.chars().count()).unwrap_or(u64::MAX);
-    Ok(BookText {
-        format: Format::Txt,
-        // TXT 没有篇章结构：整本书是一个资源、一个章节
-        chapters: vec![ChapterSpan {
-            href: "txt:".to_owned(),
-            start_char: 0,
-            end_char: char_count,
-        }],
-        text,
-        truncated,
-    })
+    if truncated {
+        source_map.truncate_txt(char_count, text.len() as u64);
+    }
+    Ok(MappedBookText::with_source_map(
+        BookText {
+            format: Format::Txt,
+            // TXT 没有篇章结构：整本书是一个资源、一个章节
+            chapters: vec![ChapterSpan {
+                href: "txt:".to_owned(),
+                start_char: 0,
+                end_char: char_count,
+            }],
+            text,
+            truncated,
+        },
+        Ok(source_map),
+    ))
 }
 
 /// 抽取整个 TXT 文件的正文与"章节"映射（阶段③的输入）。
@@ -644,6 +777,18 @@ fn build_txt_book_text(decoded: &str, options: ExtractOptions) -> Result<BookTex
 pub fn extract_txt(bytes: &[u8], options: ExtractOptions) -> Result<BookText, JobsError> {
     let decoded = perch_txt::decode(bytes);
     build_txt_book_text(decoded.text(), options)
+}
+
+/// Decode and normalize TXT while retaining decoded scalar/UTF-8 source intervals.
+///
+/// # Errors
+/// See [`extract_txt`].
+pub fn extract_txt_with_source_map(
+    bytes: &[u8],
+    options: ExtractOptions,
+) -> Result<MappedBookText, JobsError> {
+    let decoded = perch_txt::decode(bytes);
+    build_txt_book_text_with_source_map(decoded.text(), options)
 }
 
 /// 阶段②：TXT 的"精修"。
@@ -737,7 +882,8 @@ pub fn index_book(book: &BookText, chunk_chars: u64) -> Index {
 /// # 为什么 EPUB 不给 `partialCfi`
 ///
 /// 索引里存的是"拼接后正文"的字符偏移，而 CFI 是相对**原始 XHTML 结构**的路径。
-/// 从前者推后者需要那一章的 DOM 遍历信息，拼接时已经丢掉（为了省内存）。
+/// 此旧入口只接收 [`BookText`]，不携带文本节点信息。新的 [`MappedBookText`]
+/// 保存紧凑源映射，精确回源请用 [`locate_source_range`]；本函数保留原 Locator 行为。
 ///
 /// 所以这里给的是**粗定位**：`href`（哪一章）+ `progression`（全书进度）+
 /// `text`（命中原文与前后文）。阅读器拿到后用 `perch_epub::reanchor`
@@ -747,8 +893,8 @@ pub fn index_book(book: &BookText, chunk_chars: u64) -> Index {
 /// # TXT 的字节偏移
 ///
 /// `perch.txtByteOffset` 是相对**归一化后的 [`BookText::text`]** 的字节偏移，
-/// 不是原始文件字节偏移（解码 + 空白归一化会改变长度）。若调用方需要拿原始
-/// 文件做切片，应以 `txtOffset`（字符偏移）为准，再用 `perch_txt` 重新换算。
+/// `txtOffset` 同样相对归一化后的正文，两者都不能直接用于原阅读文本切片。
+/// 要取原解码 TXT 切片，使用 [`locate_source_range`] 返回的源字符/字节端点。
 #[must_use]
 pub fn locate_hit(book: &BookText, hit: &Hit) -> Option<Locator> {
     match book.format {
@@ -1108,7 +1254,7 @@ mod tests {
     #[test]
     fn normalize_collapses_blank_lines_and_keeps_inline_spaces() {
         let raw = "\r\n\r\n  第一段  有空格 \r\n \r\n\t\r\n第二段\r\n\r\n\r\n";
-        let normalized = normalize_txt_whitespace(raw);
+        let normalized = normalize_txt_whitespace(raw).0;
         assert_eq!(
             normalized, "  第一段  有空格 \n\n第二段",
             "首尾空行丢弃，视觉空行合并成一个空行，行内空格保留"

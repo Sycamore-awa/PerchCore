@@ -172,7 +172,20 @@ class PerchWorker {
   Future<Map<String, dynamic>> call(
     String method, [
     Map<String, dynamic>? args,
-  ]) {
+  ]) => _call(null, method, args);
+
+  /// 在显式 Rust context 中调用，业务 JSON 契约与 [call] 相同。
+  Future<Map<String, dynamic>> callInContext(
+    PerchContext context,
+    String method, [
+    Map<String, dynamic>? args,
+  ]) => _call(context.id, method, args);
+
+  Future<Map<String, dynamic>> _call(
+    int? context,
+    String method,
+    Map<String, dynamic>? args,
+  ) {
     if (_failure != null) {
       return Future.error(StateError('$_failure，请重启应用。'));
     }
@@ -187,6 +200,7 @@ class PerchWorker {
         'id': id,
         'method': method,
         'args': args ?? const <String, dynamic>{},
+        if (context != null) 'context': context,
       });
     } on Object catch (error, stack) {
       _pending.remove(id);
@@ -255,11 +269,14 @@ void _workerMain(Object? config) {
 
     final id = message['id'];
     final method = message['method'] as String;
+    final context = message['context'] as int?;
     final payload = (message['args'] as Map?)?.cast<String, dynamic>();
     try {
       final value = method == 'worker.fingerprintPath'
           ? _fingerprintPath(core, payload!['path'] as String)
-          : core.invoke(method, payload);
+          : context == null
+          ? core.invoke(method, payload)
+          : core.invokeInContext(PerchContext(context), method, payload);
       responses.send(<String, Object?>{'id': id, 'ok': true, 'value': value});
     } on PerchCoreException catch (error) {
       responses.send(<String, Object?>{

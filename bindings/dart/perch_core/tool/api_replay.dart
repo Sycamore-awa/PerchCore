@@ -1,4 +1,4 @@
-// Persistent client for the same method<TAB>JSON protocol as examples/c/replay.c.
+// Persistent client for context<TAB>method<TAB>JSON, shared with C replay.
 import 'dart:convert';
 import 'dart:io';
 
@@ -13,13 +13,24 @@ Future<void> main(List<String> args) async {
   final core = PerchCore.open(libraryPath: args.single);
   await for (final line
       in stdin.transform(utf8.decoder).transform(const LineSplitter())) {
-    final tab = line.indexOf('\t');
-    if (tab < 0) throw const FormatException('Missing method separator');
-    final method = line.substring(0, tab);
-    final request = jsonDecode(line.substring(tab + 1)) as Map<String, dynamic>;
+    final contextTab = line.indexOf('\t');
+    final methodTab = line.indexOf('\t', contextTab + 1);
+    if (contextTab < 0 || methodTab < 0) {
+      throw const FormatException('Missing context/method separator');
+    }
+    final contextText = line.substring(0, contextTab);
+    final method = line.substring(contextTab + 1, methodTab);
+    final request =
+        jsonDecode(line.substring(methodTab + 1)) as Map<String, dynamic>;
     Map<String, dynamic> result;
     try {
-      result = core.invoke(method, request);
+      result = contextText.isEmpty
+          ? core.invoke(method, request)
+          : core.invokeInContext(
+              PerchContext(int.parse(contextText)),
+              method,
+              request,
+            );
     } on PerchCoreException catch (error) {
       result = {
         'error': {'code': error.code, 'message': error.message},

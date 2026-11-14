@@ -16,10 +16,14 @@ from api_examples import fixtures
 ROOT = Path(__file__).resolve().parents[1]
 DRAFT = "https://json-schema.org/draft/2020-12/schema"
 API_MAJOR = 1
-API_MINOR = 1
-COMMON_ID = f"urn:perchcore:api:v{API_MAJOR}:common"
-REQUEST_ID = f"urn:perchcore:api:v{API_MAJOR}:request"
-RESPONSE_ID = f"urn:perchcore:api:v{API_MAJOR}:response"
+API_MINOR = 4
+SCHEMA_VERSION = f"v{API_MAJOR}.{API_MINOR}"
+COMMON_ID = f"urn:perchcore:api:{SCHEMA_VERSION}:common"
+REQUEST_ID = f"urn:perchcore:api:{SCHEMA_VERSION}:request"
+RESPONSE_ID = f"urn:perchcore:api:{SCHEMA_VERSION}:response"
+LEGACY_COMMON_ID = f"urn:perchcore:api:v{API_MAJOR}:common"
+LEGACY_REQUEST_ID = f"urn:perchcore:api:v{API_MAJOR}:request"
+LEGACY_RESPONSE_ID = f"urn:perchcore:api:v{API_MAJOR}:response"
 
 
 def obj(properties=None, required=None, **kwargs):
@@ -66,9 +70,10 @@ STAGE = enum("refine", "index")
 HEX = {"type": "string", "pattern": "^(?:[0-9A-Fa-f]{2})*$"}
 UUID = {"type": "string", "format": "uuid"}
 HLC = field(STRING, "HLC 字符串，推荐非负十进制 wall-counter-device；解析和排序由 Rust 执行。")
-HANDLE = field(U64, "当前进程的共享注册表句柄，0 有效；不能当作指针、布尔值或持久化 ID。")
+HANDLE = field(U64, "当前进程的对象句柄，0 有效；属于创建它的 context，不能当作指针、布尔值或持久化 ID。")
+CONTEXT = field(U64, "当前进程的显式 context；由 context.open 返回，0 为不可关闭的内部 legacy 值。")
 CHUNK = field(U64, "索引分片的 Unicode scalar 数；0 在运行时回退为 4096。", 4096)
-MAX_CHARS = field(U64, "抽取上限，按非空白 Unicode scalar 计数。", 5000000)
+MAX_CHARS = field(U64, "抽取上限，按包含空白的 Unicode scalar 计数；EPUB 保留完整节点及其后的分隔符。", 5000000)
 BYTES = field(HEX, "原始文件字节的偶数位 ASCII hex，无 0x 前缀；大小写均可。")
 PATH = field(STRING, "文件路径，由运行库所在进程访问；推荐绝对路径。")
 
@@ -119,10 +124,25 @@ COMMON = {
         obj({"kind": {"const": "annotation"}, "annotation": ref("Annotation")}),
     ]},
     "Error": obj({"error": obj({"code": STRING, "message": STRING})}),
+    "ContextOpened": obj({"context": CONTEXT}),
+    "ContextReleased": obj({"books": U64, "txts": U64, "pipelines": U64}),
+    "ContextClosed": obj({"closed": BOOL, "released": ref("ContextReleased")}),
     "BookOpened": obj({"handle": HANDLE, "charCount": U64, "chapterCount": U64,
                        "chunks": U64, "tokens": U64, "truncated": BOOL}),
     "BookHit": obj({"charStart": U64, "charEnd": U64, "snippet": STRING,
                     "locator": nullable(ref("Locator"))}),
+    "TxtSourceEndpoint": obj({"kind": {"const": "txt"},
+        "charOffset": field(U64, "建立索引时原解码 TXT 的 Unicode scalar 边界（BOM 已移除）。"),
+        "byteOffset": field(U64, "原解码 TXT 的 UTF-8 字节边界，不是 GBK/Big5 等源文件字节偏移。")}),
+    "EpubSourceEndpoint": obj({"kind": {"const": "epub"},
+        "href": field(STRING, "该端点的容器绝对路径；跨章两端分别保留自己的 href。"),
+        "nodePath": field(STRING, "无字符偏移的局部 CFI 风格文本节点路径，按 XhtmlIndex 规则编号。"),
+        "scalarOffset": field(U64, "实体解码后文本节点内的 Unicode scalar 边界。"),
+        "utf16Offset": field(U64, "同一节点内的 UTF-16 码元边界；emoji 等非 BMP 字符占 2。")}),
+    "SourceEndpoint": {"oneOf": [ref("TxtSourceEndpoint"), ref("EpubSourceEndpoint")]},
+    "BookSourceLocation": {"oneOf": [obj({"start": ref(endpoint), "end": ref(endpoint),
+        "containsSynthetic": field(BOOL, "请求区间是否包含 EPUB 抽取时人工添加的分隔符。")})
+        for endpoint in ("TxtSourceEndpoint", "EpubSourceEndpoint")]},
     "IndexHit": obj({"char_start": U64, "char_end": U64, "chunk": U64, "snippet": STRING}),
     "Refinement": obj({"title": STRING, "author": STRING, "language": STRING, "encoding": STRING,
                        "coverHref": STRING, "toc": array(STRING), "spineCount": U32,
@@ -140,10 +160,14 @@ COMMON = {
                  "allowHeavy": field(BOOL, "false 时不开始重任务。", True)}, []),
     "PipelineStats": obj({k: U64 for k in ("pendingRefine", "pendingIndex", "inFlight", "exhausted")}),
     "Recovered": obj({"book": UUID, "state": STATE, "attempts": U16,
-                      "failedStage": nullable(STAGE), "reason": nullable(STRING), "retryAtMs": nullable(U64)}),
+                      "failedStage": nullable(STAGE),
+                      "reason": field(nullable(STRING), "最近业务失败，或 STORE_* 前缀的产物恢复诊断。"),
+                      "retryAtMs": nullable(U64)}),
     "PipelineState": {"oneOf": [obj({"known": {"const": False}}),
         obj({"known": {"const": True}, "state": STATE, "attempts": U16,
-             "failedStage": nullable(STAGE), "reason": nullable(STRING), "retryAtMs": nullable(U64)})]},
+             "failedStage": nullable(STAGE),
+             "reason": field(nullable(STRING), "最近业务失败，或 STORE_* 前缀的产物恢复诊断。"),
+             "retryAtMs": nullable(U64)})]},
     "PipelineStep": {"oneOf": [
         obj({"outcome": {"const": "idle"}, "stats": ref("PipelineStats")}),
         obj({"outcome": {"const": "refined"}, "stats": ref("PipelineStats"), "book": UUID,
@@ -167,9 +191,9 @@ COMMON = {
 
 METHODS = []
 JOBS_ERRORS = ["JOBS_EPUB", "JOBS_NO_CONTENT", "JOBS_EMPTY_CONTENT", "JOBS_UNSUPPORTED_FORMAT"]
-BOOK_HANDLE_ERRORS = ["BOOK_BAD_HANDLE", "HANDLE_WRONG_KIND"]
-TXT_HANDLE_ERRORS = ["TXT_BAD_HANDLE", "HANDLE_WRONG_KIND"]
-PIPE_HANDLE_ERRORS = ["PIPELINE_BAD_HANDLE", "HANDLE_WRONG_KIND"]
+BOOK_HANDLE_ERRORS = ["BOOK_BAD_HANDLE", "HANDLE_WRONG_KIND", "CONTEXT_HANDLE_MISMATCH"]
+TXT_HANDLE_ERRORS = ["TXT_BAD_HANDLE", "HANDLE_WRONG_KIND", "CONTEXT_HANDLE_MISMATCH"]
+PIPE_HANDLE_ERRORS = ["PIPELINE_BAD_HANDLE", "HANDLE_WRONG_KIND", "CONTEXT_HANDLE_MISMATCH"]
 SYNC_ERRORS = ["SYNC_TARGET_MISMATCH", "SYNC_INCONSISTENT"]
 
 
@@ -192,6 +216,14 @@ method("compatibility", "读取 ABI、API、Locator 与产物兼容能力", obj(
 }), notes=[
     "ABI/API/Locator/index/text 版本相互独立；read 是当前读取器接受的版本，write 是当前写入版本。",
     "旧核心没有此方法时返回 FFI_UNKNOWN_METHOD；调用方只能进入已知 legacy 分支。"])
+method("context.open", "创建独立句柄与固定配额上下文", obj(), ref("ContextOpened"),
+       ["CONTEXT_ID_EXHAUSTED"], [
+    "只能通过 perch_call 调用；返回的 context 用于 perch_context_call，不是指针或持久化 ID。",
+    "每个 context 独立拥有 8 book、4 TXT、1 pipeline 的当前固定配额；可配置配额留给 CTX-04。"])
+method("context.close", "销毁上下文及其全部对象", obj({"context": CONTEXT}), ref("ContextClosed"),
+       ["CONTEXT_LEGACY"], [
+           "只能通过 perch_call 调用；重复关闭或未知 context 返回 closed:false 与全 0 released。",
+           "关闭只释放内存对象，不删除源文件、pipeline 产物或状态文件。"])
 method("locator.validate", "校验 Locator 的结构与定位语义", ref("Locator"),
        obj({"valid": {"const": True}, "format": nullable(FORMAT)}),
        ["MODEL_EMPTY_FIELD", "MODEL_UNSUPPORTED_VERSION", "MODEL_INVALID_PROGRESSION", "MODEL_INVALID_RECT", "MODEL_MISSING_ANCHOR"], [
@@ -202,33 +234,49 @@ method("fingerprint", "计算文件大小与首尾样本指纹",
        obj({"fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"}}), notes=[
            "推荐采样首尾各 64 KiB；这是采样指纹，不能替代完整文件 SHA-256。"])
 method("jobs.refine", "精修 EPUB/TXT 元数据并统计正文",
-       obj({"bytes_hex": BYTES, "format": FORMAT, "max_chars": MAX_CHARS}, ["bytes_hex"]),
-       ref("Refinement"), JOBS_ERRORS, [
+       obj({"path": PATH, "bytes_hex": BYTES, "format": FORMAT, "max_chars": MAX_CHARS}, [],
+           oneOf=[{"required": ["path"]}, {"required": ["bytes_hex"]}]),
+       ref("Refinement"), [*JOBS_ERRORS, "JOBS_IO"], [
+           "API v1.3 起支持 path；path/bytes_hex 必须且只能存在一个，null 也算存在。路径由核心同步读取，不保留文件描述符。",
            "省略 format 时按内容嗅探，损坏 EPUB 可能被识别为 TXT，已知格式时应显式给定。",
            "charCount 为非空白 scalar；max_chars 控制抽取，结果不提供 truncated 字段。PDF 不支持精修。"])
 method("book.open", "抽取正文并构建可复用搜索索引",
-       obj({"bytes_hex": BYTES, "format": FORMAT, "chunk_chars": CHUNK}, ["bytes_hex"]),
-       ref("BookOpened"), [*JOBS_ERRORS, "BOOK_TOO_MANY_OPEN"], [
-           "省略 format 按内容嗅探；抽取固定上限 5,000,000 非空白 scalar，无 max_chars 参数。",
+       obj({"path": PATH, "bytes_hex": BYTES, "format": FORMAT, "chunk_chars": CHUNK}, [],
+           oneOf=[{"required": ["path"]}, {"required": ["bytes_hex"]}]),
+       ref("BookOpened"), [*JOBS_ERRORS, "BOOK_OPEN_IO", "BOOK_TOO_MANY_OPEN", "HANDLE_ID_EXHAUSTED"], [
+           "API v1.3 起支持 path；path/bytes_hex 必须且只能存在一个。路径读取/抽取/建索引在根锁外执行，成功后保留正文、索引与源映射。",
+           "省略 format 按内容嗅探；抽取固定上限 5,000,000 Unicode scalar，无 max_chars 参数。EPUB 按完整文本节点接纳，其后的人工分隔符可能使 charCount 多 1。",
            "truncated 表示抽取被截断；charCount 是已抽取索引文本的 scalar 数。不要放在阅读首屏路径。"])
 method("book.load", "加载管线产物并验证正文一致性",
        obj({"index_path": PATH, "text_path": PATH}), ref("BookOpened"),
        ["INDEX_IO", "INDEX_BAD_MAGIC", "INDEX_UNSUPPORTED_VERSION", "INDEX_CORRUPTED", "INDEX_BAD_UTF8",
         "INDEX_INTEGRITY", "BOOK_LOAD_IO", "BOOK_TEXT_JSON", "BOOK_TEXT_UNSUPPORTED_VERSION",
-        "BOOK_INDEX_MISMATCH", "BOOK_TOO_MANY_OPEN"], [
+        "BOOK_INDEX_MISMATCH", "BOOK_TOO_MANY_OPEN", "HANDLE_ID_EXHAUSTED"], [
             "index_path 对应 index.bin，text_path 对应 text.json；正文不相同则拒绝，不重新抽取或建索引。",
-            "text.json 缺省 version 按 legacy v0 读取；当前写 v1，未知版本与 JSON 损坏使用不同错误码。"])
+            "text.json 缺省 version 按 legacy v0 读取；当前写 v1，未知版本与 JSON 损坏使用不同错误码。",
+            "可选 sourceMap 自身版本为 1；缺少、未知版本或损坏不阻止加载/搜索，只在 book.locate 报告。"])
 method("book.search", "搜索已打开的索引",
        obj({"handle": HANDLE, "query": STRING, "limit": field(U64, "结果上限，0 返回空数组。", 50)},
            ["handle", "query"]), obj({"hits": array(ref("BookHit"))}), BOOK_HANDLE_ERRORS, [
-           "charStart/charEnd 是索引文本中的半开 scalar 区间。TXT 空白归一化后不等同原文偏移；EPUB Locator 为粗定位。",
+           "charStart/charEnd 是索引文本中的半开 scalar 区间。使用 book.locate 获取源端点；旧 Locator 行为保留，TXT 归一化偏移不等同原文，EPUB 为粗定位。",
            "按字面短语匹配，ASCII 忽略大小写；纯 emoji/标点无 token 时返回空。limit 在完整查询后应用。"])
+method("book.locate", "将搜索命中的索引区间定位到源文本",
+       obj({"handle": HANDLE, "char_start": field(U64, "命中的索引 scalar 起点（含）。"),
+            "char_end": field(U64, "命中的索引 scalar 终点（不含）。")}), ref("BookSourceLocation"),
+       [*BOOK_HANDLE_ERRORS, "BOOK_SOURCE_MAP_MISSING", "BOOK_SOURCE_MAP_UNSUPPORTED_VERSION",
+        "BOOK_SOURCE_MAP_INVALID", "BOOK_LOCATE_BAD_RANGE", "BOOK_SOURCE_UNMAPPABLE"], [
+           "API v1.4 新增。0 ≤ start < end ≤ 已索引字符数；缺失/非 u64 的区间字段也返回 BOOK_LOCATE_BAD_RANGE，handle 字段错误沿用 FFI_BAD_ARGS。",
+           "起点向右、终点向左吸附到请求区间内可映射边界；只含人工 EPUB 分隔符返回 BOOK_SOURCE_UNMAPPABLE。返回两个端点，不返回沿途所有节点。",
+           "TXT 换行转换和空行折叠各映射到完整的原解码源区间；EPUB Text/实体/相邻 CDATA 按 XhtmlIndex 合并语义定位到文本节点。",
+           "新 book.open 与导入索引生成映射；旧产物仍可搜索，精确定位需调用方从原书重建。缺少/未知版本/损坏映射使用不同错误码。",
+           "默认指向建立索引时的源文本版本；不重新读取或自动重锚定已修改的源文件。context 所有权和关闭/在途租约语义与 book.search 一致。"])
 method("book.close", "释放搜索索引句柄", obj({"handle": HANDLE}), obj({"closed": BOOL}),
-       ["HANDLE_WRONG_KIND"], ["重复关闭或未知数字返回 closed:false；错类型不关闭其他对象。"])
+       ["HANDLE_WRONG_KIND", "CONTEXT_HANDLE_MISMATCH"], ["重复关闭或未知数字返回 closed:false；错类型不关闭其他对象。"])
 method("txt.open", "按路径打开并解码 TXT",
        obj({"path": PATH, "encoding": field(STRING, "可选 encoding_rs 编码标签，显式标签跳过探测。")}, ["path"]),
        obj({"handle": HANDLE, "chars": U64, "lines": U64, "encoding": STRING,
-            "certain": BOOL, "hadErrors": BOOL}), ["TXT_IO", "TXT_UNKNOWN_ENCODING", "TXT_TOO_MANY_OPEN"], [
+            "certain": BOOL, "hadErrors": BOOL}),
+       ["TXT_IO", "TXT_UNKNOWN_ENCODING", "TXT_TOO_MANY_OPEN", "HANDLE_ID_EXHAUSTED"], [
             "默认按 BOM、合法 UTF-8、chardetng 探测；全文读取并解码，保留换行和空白。chars 是 scalar 数。"])
 method("txt.slice", "读取有上限的原文窗口",
        obj({"handle": HANDLE, "start": field(U64, "起点，Unicode scalar 偏移，可等于 EOF。", 0),
@@ -249,18 +297,24 @@ method("txt.line", "读取偏移所在行与区间", obj({"handle": HANDLE, "cha
        [*TXT_HANDLE_ERRORS, "TXT_OUT_OF_RANGE"], [
            "char 是 scalar 偏移，允许 EOF；line 从 0 起。行区间含行尾 LF；CRLF 中 CR 属于范围，单独 CR 不新增索引行。"])
 method("txt.close", "释放 TXT 句柄", obj({"handle": HANDLE}), obj({"closed": BOOL}),
-       ["HANDLE_WRONG_KIND"], ["重复关闭或未知数字返回 closed:false；错类型不关闭其他对象。"])
+       ["HANDLE_WRONG_KIND", "CONTEXT_HANDLE_MISMATCH"], ["重复关闭或未知数字返回 closed:false；错类型不关闭其他对象。"])
 method("txt.analyze", "解码字节并返回全文", obj({"bytes_hex": BYTES}),
        obj({"encoding": STRING, "certain_encoding": BOOL, "chars": U64, "lines": U64,
             "had_decode_errors": BOOL, "text": STRING}), notes=[
             "保留 underscore 字段名；不提供显式编码参数，chars 为原解码文本 scalar 数。",
             "bytes_hex 为原文件两倍长度，结果返回全文。阅读窗口使用 txt.open/slice。"])
+method("txt.inspect", "按路径解码并返回 TXT 统计", obj({"path": PATH, "encoding": STRING}, ["path"]),
+       obj({"encoding": STRING, "certain_encoding": BOOL, "chars": U64, "lines": U64,
+            "had_decode_errors": BOOL}), ["TXT_IO", "TXT_UNKNOWN_ENCODING"], [
+            "API v1.3 新增；解码规则与 txt.open 相同，可显式指定 encoding。统计保留 txt.analyze 的字段名，但不返回 text、不创建句柄。",
+            "仍全量读取/解码，结果大小不随正文长度增长；需要阅读时使用 txt.open/slice，每次最多 20,000 scalar。"])
 method("pipeline.open", "打开可恢复的路径导入管线",
        obj({"out_dir": field(STRING, "产物根目录，一条管线单独拥有；按 book UUID 建子目录。"),
             "policy": ref("Policy"), "max_chars": MAX_CHARS, "chunk_chars": CHUNK}, ["out_dir"]),
        obj({"handle": HANDLE, "recovered": array(ref("Recovered"))}),
-       ["PIPELINE_IO", "PIPELINE_POLICY", "PIPELINE_TOO_MANY_OPEN"], [
-           "创建和扫描目录在策略/配额检查前执行；失败可能已产生目录副作用。恢复规则见 storage.md。"])
+       ["PIPELINE_IO", "PIPELINE_POLICY", "PIPELINE_TOO_MANY_OPEN", "HANDLE_ID_EXHAUSTED"], [
+           "创建和扫描目录在策略/配额检查前执行；失败可能已产生目录副作用。",
+           "单书损坏会以 registered/indexing 恢复并在 reason 中返回 STORE_* 诊断；恢复规则见 storage.md。"])
 method("pipeline.enqueue", "登记源路径并按落盘状态恢复入队",
        obj({"handle": HANDLE, "book": UUID, "path": PATH, "format": FORMAT,
             "priority": field(PRIORITY, "调度优先级。", "normal"),
@@ -290,7 +344,7 @@ method("pipeline.cancel", "撤出书籍排队任务", obj({"handle": HANDLE, "bo
        obj({"cancelled": {"const": True}}), PIPE_HANDLE_ERRORS,
        ["不删除源文件/产物；不抢占或中断已在执行的同步 step。"])
 method("pipeline.close", "释放导入管线句柄", obj({"handle": HANDLE}), obj({"closed": BOOL}),
-       ["HANDLE_WRONG_KIND"], ["重复关闭或未知数字返回 closed:false；保留磁盘产物供重开恢复。"])
+       ["HANDLE_WRONG_KIND", "CONTEXT_HANDLE_MISMATCH"], ["重复关闭或未知数字返回 closed:false；保留磁盘产物供重开恢复。"])
 method("pdf.analyze", "分析 PDF 页数、大纲与元数据",
        obj({"path": PATH, "bytes_hex": BYTES}, [], oneOf=[{"required": ["path"]}, {"required": ["bytes_hex"]}]),
        ref("PdfInfo"), ["PDF_IO", "PDF_EMPTY", "PDF_NOT_PDF", "PDF_ENCRYPTED", "PDF_NO_PAGES", "PDF_CORRUPTED"],
@@ -373,6 +427,8 @@ def reference():
              "Schema 检查结构与规范类型；明确注明的语义约束由对应 Rust 方法判断。", "",
              "所有方法都可能因 JSON 语法/字段问题返回 `FFI_BAD_ARGS`；C 输入 UTF-8 无效时返回",
              "`FFI_BAD_METHOD_PTR` / `FFI_BAD_ARGS_PTR`，未知方法返回 `FFI_UNKNOWN_METHOD`。",
+             "通过 `perch_context_call` 调用时还可能返回 `CONTEXT_BAD_HANDLE` / `CONTEXT_METHOD_SCOPE`；",
+             "有状态对象跨 context 使用返回 `CONTEXT_HANDLE_MISMATCH`。业务 JSON 参数保持不变。",
              "下方错误列表列出各方法的字段/业务错误；message 为说明，不作为稳定匹配字段。", "",
              "## 方法索引", "", "| 方法 | 用途 |", "|---|---|"]
     for entry in METHODS:
@@ -403,7 +459,7 @@ def reference():
 
 def artifacts():
     outputs = {"api/examples.json": fixtures(),
-               "api/common.schema.json": {"$schema": DRAFT, "$id": COMMON_ID, "$defs": COMMON},
+               f"api/{SCHEMA_VERSION}/common.schema.json": {"$schema": DRAFT, "$id": COMMON_ID, "$defs": COMMON},
                "api/catalog.json": {"description": "Versioned canonical FFI contracts and runtime negotiation metadata.",
                                     "api": {"major": API_MAJOR, "minor": API_MINOR},
                                     "methods": METHODS}}
@@ -415,7 +471,7 @@ def artifacts():
                 payload = {"oneOf": [payload, ref("Error")]}
             alternatives.append(obj({"method": {"const": entry["name"]},
                                      "args" if key == "request" else "result": payload}))
-        outputs[f"api/{filename}.schema.json"] = {"$schema": DRAFT, "$id": ident, "oneOf": alternatives}
+        outputs[f"api/{SCHEMA_VERSION}/{filename}.schema.json"] = {"$schema": DRAFT, "$id": ident, "oneOf": alternatives}
     result = {path: json.dumps(content, ensure_ascii=False, indent=2) + "\n" for path, content in outputs.items()}
     result["docs/api-reference.md"] = reference()
     return result

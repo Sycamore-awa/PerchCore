@@ -283,6 +283,109 @@ fn golden_phrase_ranges_survive_index_serialization() {
     }
 }
 
+#[test]
+fn corpus_source_locations_survive_persistence_and_resolve_in_reading_sources() {
+    for sample in manifest()
+        .samples
+        .into_iter()
+        .filter(|sample| sample.indexed.is_some())
+    {
+        let bytes = content(&sample);
+        let mapped = jobs::extract_text_with_source_map(
+            &bytes,
+            sample.format,
+            jobs::ExtractOptions::default(),
+        )
+        .unwrap();
+        assert_eq!(
+            mapped.book_text().text,
+            expected(sample.indexed.as_ref().unwrap())
+        );
+        let stored = jobs::mapped_book_text_to_vec(&mapped).unwrap();
+        let loaded = jobs::mapped_book_text_from_slice(&stored).unwrap();
+        let index = jobs::index_book(mapped.book_text(), 4096);
+        let legacy_body =
+            jobs::extract_text(&bytes, sample.format, jobs::ExtractOptions::default()).unwrap();
+        // Posting-map iteration order is intentionally not a serialization contract.
+        let legacy_index = jobs::index_book(&legacy_body, 4096);
+        assert_eq!(
+            index.to_bytes().len(),
+            legacy_index.to_bytes().len(),
+            "{} index size drift",
+            sample.id
+        );
+        let reading_txt =
+            (sample.format == Format::Txt).then(|| txt::TxtDocument::from_bytes(&bytes));
+        let mut archive = (sample.format == Format::Epub)
+            .then(|| epub::EpubArchive::from_bytes(bytes.clone()).unwrap());
+        for query in &sample.queries {
+            assert_eq!(
+                index.search(&query.query),
+                legacy_index.search(&query.query)
+            );
+            for hit in index.search(&query.query) {
+                let location = mapped.locate(hit.char_start, hit.char_end).unwrap();
+                assert_eq!(
+                    loaded.locate(hit.char_start, hit.char_end).unwrap(),
+                    location
+                );
+                match (&location.start, &location.end) {
+                    (
+                        jobs::SourceEndpoint::Txt {
+                            char_offset: start,
+                            byte_offset: start_byte,
+                        },
+                        jobs::SourceEndpoint::Txt {
+                            char_offset: end,
+                            byte_offset: end_byte,
+                        },
+                    ) => {
+                        let reading = reading_txt.as_ref().unwrap();
+                        assert_eq!(reading.char_to_byte(*start), Some(*start_byte as usize));
+                        assert_eq!(reading.char_to_byte(*end), Some(*end_byte as usize));
+                        assert!(
+                            reading
+                                .text_range(*start..*end)
+                                .unwrap()
+                                .eq_ignore_ascii_case(&query.query),
+                            "{} {:?}",
+                            sample.id,
+                            location
+                        );
+                    }
+                    (jobs::SourceEndpoint::Epub { .. }, jobs::SourceEndpoint::Epub { .. }) => {
+                        for point in [&location.start, &location.end] {
+                            let jobs::SourceEndpoint::Epub {
+                                href,
+                                node_path,
+                                scalar_offset,
+                                utf16_offset,
+                            } = point
+                            else {
+                                unreachable!()
+                            };
+                            let content = archive
+                                .as_mut()
+                                .unwrap()
+                                .read(href.trim_start_matches('/'))
+                                .unwrap();
+                            let document = epub::XhtmlIndex::build(&content).unwrap();
+                            let node = document
+                                .resolve(&epub::CfiPath::parse(node_path).unwrap())
+                                .unwrap();
+                            assert!(*scalar_offset <= node.text.chars().count() as u64);
+                            let prefix: String =
+                                node.text.chars().take(*scalar_offset as usize).collect();
+                            assert_eq!(*utf16_offset, prefix.encode_utf16().count() as u64);
+                        }
+                    }
+                    _ => panic!("endpoint format mismatch"),
+                }
+            }
+        }
+    }
+}
+
 fn assert_outline(actual: &[pdf::OutlineItem], expected: &[Outline]) {
     assert_eq!(actual.len(), expected.len());
     for (actual, expected) in actual.iter().zip(expected) {

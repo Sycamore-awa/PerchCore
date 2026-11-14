@@ -4,7 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-/* perch_call / perch_string_free signatures and ownership rules. */
+/* Existing symbols and ownership rules remain ABI v1; new symbols are additive. */
 #define PERCH_CORE_ABI_VERSION 1
 
 #ifdef __cplusplus
@@ -21,19 +21,35 @@ extern "C" {
  * Free it exactly once with perch_string_free(), never with free().
  * Business errors are returned as {"error":{"code":"...","message":"..."}}.
  * Treat a NULL result as a failed call.
- * Stateful methods currently share a process-wide handle registry and lock.
- * Handles are integer IDs, including 0, shared across book/txt/pipeline kinds.
- * Current quotas: 8 book, 4 txt, 1 pipeline. Coordinate use and close.
+ * Stateful methods use the non-destroyable legacy context. Handles are integer
+ * IDs, including 0, shared across book/txt/pipeline kinds. Current quotas are
+ * 8 book, 4 txt, 1 pipeline for this context. Coordinate use and close.
  * Duplicate close returns closed:false; wrong-kind close does not free anything.
  * Character offsets are Unicode scalars; txtByteOffset uses decoded UTF-8 bytes.
- * See docs/ffi.md, docs/api-reference.md and api/ for all 31 method contracts.
+ * API v1.4 book.locate returns decoded TXT charOffset/UTF-8 byteOffset or EPUB
+ * href/nodePath with separate scalarOffset/utf16Offset fields at each endpoint.
+ * Source coordinates refer to the source version used when indexing the book.
+ * See docs/ffi.md, docs/api-reference.md and api/ for all 35 method contracts.
  * Schema wrappers {method,args}/{method,result} are offline tooling only:
  * pass args itself here. Runtime does not automatically enforce those schemas.
  */
 char *perch_call(const uint8_t *method_ptr, size_t method_len,
                  const uint8_t *args_ptr, size_t args_len);
 
-/* Accepts NULL. Otherwise ptr must be an unfreed result of perch_call(). */
+/*
+ * Invoke a method inside an explicit context returned by context.open.
+ * Available in JSON API v1.2 and later. Method/args/result memory rules are
+ * identical to perch_call(). Existing business JSON shapes are unchanged.
+ * Context 0, an unknown context, or a closed context returns
+ * CONTEXT_BAD_HANDLE. Handles belong to their creating context; cross-context
+ * use returns CONTEXT_HANDLE_MISMATCH. context.open/context.close themselves
+ * must be invoked with perch_call(). Each context has independent fixed quotas.
+ */
+char *perch_context_call(uint64_t context,
+                         const uint8_t *method_ptr, size_t method_len,
+                         const uint8_t *args_ptr, size_t args_len);
+
+/* Accepts NULL. Otherwise ptr must be an unfreed result of either call entry. */
 void perch_string_free(char *ptr);
 
 #ifdef __cplusplus

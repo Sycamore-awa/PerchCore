@@ -2,7 +2,7 @@
   "description": "Versioned canonical FFI contracts and runtime negotiation metadata.",
   "api": {
     "major": 1,
-    "minor": 1
+    "minor": 4
   },
   "methods": [
     {
@@ -58,7 +58,7 @@
                 "const": 1
               },
               "minor": {
-                "const": 1
+                "const": 4
               }
             },
             "required": [
@@ -151,10 +151,61 @@
       ]
     },
     {
+      "name": "context.open",
+      "summary": "创建独立句柄与固定配额上下文",
+      "request": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "result": {
+        "$ref": "urn:perchcore:api:v1.4:common#/$defs/ContextOpened"
+      },
+      "errors": [
+        "FFI_BAD_ARGS",
+        "CONTEXT_ID_EXHAUSTED"
+      ],
+      "notes": [
+        "只能通过 perch_call 调用；返回的 context 用于 perch_context_call，不是指针或持久化 ID。",
+        "每个 context 独立拥有 8 book、4 TXT、1 pipeline 的当前固定配额；可配置配额留给 CTX-04。"
+      ]
+    },
+    {
+      "name": "context.close",
+      "summary": "销毁上下文及其全部对象",
+      "request": {
+        "type": "object",
+        "properties": {
+          "context": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 18446744073709551615,
+            "description": "当前进程的显式 context；由 context.open 返回，0 为不可关闭的内部 legacy 值。"
+          }
+        },
+        "required": [
+          "context"
+        ],
+        "additionalProperties": false
+      },
+      "result": {
+        "$ref": "urn:perchcore:api:v1.4:common#/$defs/ContextClosed"
+      },
+      "errors": [
+        "FFI_BAD_ARGS",
+        "CONTEXT_LEGACY"
+      ],
+      "notes": [
+        "只能通过 perch_call 调用；重复关闭或未知 context 返回 closed:false 与全 0 released。",
+        "关闭只释放内存对象，不删除源文件、pipeline 产物或状态文件。"
+      ]
+    },
+    {
       "name": "locator.validate",
       "summary": "校验 Locator 的结构与定位语义",
       "request": {
-        "$ref": "urn:perchcore:api:v1:common#/$defs/Locator"
+        "$ref": "urn:perchcore:api:v1.4:common#/$defs/Locator"
       },
       "result": {
         "type": "object",
@@ -253,6 +304,10 @@
       "request": {
         "type": "object",
         "properties": {
+          "path": {
+            "type": "string",
+            "description": "文件路径，由运行库所在进程访问；推荐绝对路径。"
+          },
           "bytes_hex": {
             "type": "string",
             "pattern": "^(?:[0-9A-Fa-f]{2})*$",
@@ -270,26 +325,38 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 18446744073709551615,
-            "description": "抽取上限，按非空白 Unicode scalar 计数。",
+            "description": "抽取上限，按包含空白的 Unicode scalar 计数；EPUB 保留完整节点及其后的分隔符。",
             "default": 5000000
           }
         },
-        "required": [
-          "bytes_hex"
-        ],
-        "additionalProperties": false
+        "required": [],
+        "additionalProperties": false,
+        "oneOf": [
+          {
+            "required": [
+              "path"
+            ]
+          },
+          {
+            "required": [
+              "bytes_hex"
+            ]
+          }
+        ]
       },
       "result": {
-        "$ref": "urn:perchcore:api:v1:common#/$defs/Refinement"
+        "$ref": "urn:perchcore:api:v1.4:common#/$defs/Refinement"
       },
       "errors": [
         "FFI_BAD_ARGS",
         "JOBS_EPUB",
         "JOBS_NO_CONTENT",
         "JOBS_EMPTY_CONTENT",
-        "JOBS_UNSUPPORTED_FORMAT"
+        "JOBS_UNSUPPORTED_FORMAT",
+        "JOBS_IO"
       ],
       "notes": [
+        "API v1.3 起支持 path；path/bytes_hex 必须且只能存在一个，null 也算存在。路径由核心同步读取，不保留文件描述符。",
         "省略 format 时按内容嗅探，损坏 EPUB 可能被识别为 TXT，已知格式时应显式给定。",
         "charCount 为非空白 scalar；max_chars 控制抽取，结果不提供 truncated 字段。PDF 不支持精修。"
       ]
@@ -300,6 +367,10 @@
       "request": {
         "type": "object",
         "properties": {
+          "path": {
+            "type": "string",
+            "description": "文件路径，由运行库所在进程访问；推荐绝对路径。"
+          },
           "bytes_hex": {
             "type": "string",
             "pattern": "^(?:[0-9A-Fa-f]{2})*$",
@@ -321,13 +392,23 @@
             "default": 4096
           }
         },
-        "required": [
-          "bytes_hex"
-        ],
-        "additionalProperties": false
+        "required": [],
+        "additionalProperties": false,
+        "oneOf": [
+          {
+            "required": [
+              "path"
+            ]
+          },
+          {
+            "required": [
+              "bytes_hex"
+            ]
+          }
+        ]
       },
       "result": {
-        "$ref": "urn:perchcore:api:v1:common#/$defs/BookOpened"
+        "$ref": "urn:perchcore:api:v1.4:common#/$defs/BookOpened"
       },
       "errors": [
         "FFI_BAD_ARGS",
@@ -335,10 +416,13 @@
         "JOBS_NO_CONTENT",
         "JOBS_EMPTY_CONTENT",
         "JOBS_UNSUPPORTED_FORMAT",
-        "BOOK_TOO_MANY_OPEN"
+        "BOOK_OPEN_IO",
+        "BOOK_TOO_MANY_OPEN",
+        "HANDLE_ID_EXHAUSTED"
       ],
       "notes": [
-        "省略 format 按内容嗅探；抽取固定上限 5,000,000 非空白 scalar，无 max_chars 参数。",
+        "API v1.3 起支持 path；path/bytes_hex 必须且只能存在一个。路径读取/抽取/建索引在根锁外执行，成功后保留正文、索引与源映射。",
+        "省略 format 按内容嗅探；抽取固定上限 5,000,000 Unicode scalar，无 max_chars 参数。EPUB 按完整文本节点接纳，其后的人工分隔符可能使 charCount 多 1。",
         "truncated 表示抽取被截断；charCount 是已抽取索引文本的 scalar 数。不要放在阅读首屏路径。"
       ]
     },
@@ -364,7 +448,7 @@
         "additionalProperties": false
       },
       "result": {
-        "$ref": "urn:perchcore:api:v1:common#/$defs/BookOpened"
+        "$ref": "urn:perchcore:api:v1.4:common#/$defs/BookOpened"
       },
       "errors": [
         "FFI_BAD_ARGS",
@@ -378,11 +462,13 @@
         "BOOK_TEXT_JSON",
         "BOOK_TEXT_UNSUPPORTED_VERSION",
         "BOOK_INDEX_MISMATCH",
-        "BOOK_TOO_MANY_OPEN"
+        "BOOK_TOO_MANY_OPEN",
+        "HANDLE_ID_EXHAUSTED"
       ],
       "notes": [
         "index_path 对应 index.bin，text_path 对应 text.json；正文不相同则拒绝，不重新抽取或建索引。",
-        "text.json 缺省 version 按 legacy v0 读取；当前写 v1，未知版本与 JSON 损坏使用不同错误码。"
+        "text.json 缺省 version 按 legacy v0 读取；当前写 v1，未知版本与 JSON 损坏使用不同错误码。",
+        "可选 sourceMap 自身版本为 1；缺少、未知版本或损坏不阻止加载/搜索，只在 book.locate 报告。"
       ]
     },
     {
@@ -395,7 +481,7 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 18446744073709551615,
-            "description": "当前进程的共享注册表句柄，0 有效；不能当作指针、布尔值或持久化 ID。"
+            "description": "当前进程的对象句柄，0 有效；属于创建它的 context，不能当作指针、布尔值或持久化 ID。"
           },
           "query": {
             "type": "string"
@@ -420,7 +506,7 @@
           "hits": {
             "type": "array",
             "items": {
-              "$ref": "urn:perchcore:api:v1:common#/$defs/BookHit"
+              "$ref": "urn:perchcore:api:v1.4:common#/$defs/BookHit"
             }
           }
         },
@@ -432,11 +518,66 @@
       "errors": [
         "FFI_BAD_ARGS",
         "BOOK_BAD_HANDLE",
-        "HANDLE_WRONG_KIND"
+        "HANDLE_WRONG_KIND",
+        "CONTEXT_HANDLE_MISMATCH"
       ],
       "notes": [
-        "charStart/charEnd 是索引文本中的半开 scalar 区间。TXT 空白归一化后不等同原文偏移；EPUB Locator 为粗定位。",
+        "charStart/charEnd 是索引文本中的半开 scalar 区间。使用 book.locate 获取源端点；旧 Locator 行为保留，TXT 归一化偏移不等同原文，EPUB 为粗定位。",
         "按字面短语匹配，ASCII 忽略大小写；纯 emoji/标点无 token 时返回空。limit 在完整查询后应用。"
+      ]
+    },
+    {
+      "name": "book.locate",
+      "summary": "将搜索命中的索引区间定位到源文本",
+      "request": {
+        "type": "object",
+        "properties": {
+          "handle": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 18446744073709551615,
+            "description": "当前进程的对象句柄，0 有效；属于创建它的 context，不能当作指针、布尔值或持久化 ID。"
+          },
+          "char_start": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 18446744073709551615,
+            "description": "命中的索引 scalar 起点（含）。"
+          },
+          "char_end": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 18446744073709551615,
+            "description": "命中的索引 scalar 终点（不含）。"
+          }
+        },
+        "required": [
+          "handle",
+          "char_start",
+          "char_end"
+        ],
+        "additionalProperties": false
+      },
+      "result": {
+        "$ref": "urn:perchcore:api:v1.4:common#/$defs/BookSourceLocation"
+      },
+      "errors": [
+        "FFI_BAD_ARGS",
+        "BOOK_BAD_HANDLE",
+        "HANDLE_WRONG_KIND",
+        "CONTEXT_HANDLE_MISMATCH",
+        "BOOK_SOURCE_MAP_MISSING",
+        "BOOK_SOURCE_MAP_UNSUPPORTED_VERSION",
+        "BOOK_SOURCE_MAP_INVALID",
+        "BOOK_LOCATE_BAD_RANGE",
+        "BOOK_SOURCE_UNMAPPABLE"
+      ],
+      "notes": [
+        "API v1.4 新增。0 ≤ start < end ≤ 已索引字符数；缺失/非 u64 的区间字段也返回 BOOK_LOCATE_BAD_RANGE，handle 字段错误沿用 FFI_BAD_ARGS。",
+        "起点向右、终点向左吸附到请求区间内可映射边界；只含人工 EPUB 分隔符返回 BOOK_SOURCE_UNMAPPABLE。返回两个端点，不返回沿途所有节点。",
+        "TXT 换行转换和空行折叠各映射到完整的原解码源区间；EPUB Text/实体/相邻 CDATA 按 XhtmlIndex 合并语义定位到文本节点。",
+        "新 book.open 与导入索引生成映射；旧产物仍可搜索，精确定位需调用方从原书重建。缺少/未知版本/损坏映射使用不同错误码。",
+        "默认指向建立索引时的源文本版本；不重新读取或自动重锚定已修改的源文件。context 所有权和关闭/在途租约语义与 book.search 一致。"
       ]
     },
     {
@@ -449,7 +590,7 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 18446744073709551615,
-            "description": "当前进程的共享注册表句柄，0 有效；不能当作指针、布尔值或持久化 ID。"
+            "description": "当前进程的对象句柄，0 有效；属于创建它的 context，不能当作指针、布尔值或持久化 ID。"
           }
         },
         "required": [
@@ -471,7 +612,8 @@
       },
       "errors": [
         "FFI_BAD_ARGS",
-        "HANDLE_WRONG_KIND"
+        "HANDLE_WRONG_KIND",
+        "CONTEXT_HANDLE_MISMATCH"
       ],
       "notes": [
         "重复关闭或未知数字返回 closed:false；错类型不关闭其他对象。"
@@ -504,7 +646,7 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 18446744073709551615,
-            "description": "当前进程的共享注册表句柄，0 有效；不能当作指针、布尔值或持久化 ID。"
+            "description": "当前进程的对象句柄，0 有效；属于创建它的 context，不能当作指针、布尔值或持久化 ID。"
           },
           "chars": {
             "type": "integer",
@@ -540,7 +682,8 @@
         "FFI_BAD_ARGS",
         "TXT_IO",
         "TXT_UNKNOWN_ENCODING",
-        "TXT_TOO_MANY_OPEN"
+        "TXT_TOO_MANY_OPEN",
+        "HANDLE_ID_EXHAUSTED"
       ],
       "notes": [
         "默认按 BOM、合法 UTF-8、chardetng 探测；全文读取并解码，保留换行和空白。chars 是 scalar 数。"
@@ -556,7 +699,7 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 18446744073709551615,
-            "description": "当前进程的共享注册表句柄，0 有效；不能当作指针、布尔值或持久化 ID。"
+            "description": "当前进程的对象句柄，0 有效；属于创建它的 context，不能当作指针、布尔值或持久化 ID。"
           },
           "start": {
             "type": "integer",
@@ -618,6 +761,7 @@
         "FFI_BAD_ARGS",
         "TXT_BAD_HANDLE",
         "HANDLE_WRONG_KIND",
+        "CONTEXT_HANDLE_MISMATCH",
         "TXT_SLICE_BAD_SIZE",
         "TXT_OUT_OF_RANGE"
       ],
@@ -635,7 +779,7 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 18446744073709551615,
-            "description": "当前进程的共享注册表句柄，0 有效；不能当作指针、布尔值或持久化 ID。"
+            "description": "当前进程的对象句柄，0 有效；属于创建它的 context，不能当作指针、布尔值或持久化 ID。"
           },
           "char": {
             "type": "integer",
@@ -653,7 +797,7 @@
         "type": "object",
         "properties": {
           "locator": {
-            "$ref": "urn:perchcore:api:v1:common#/$defs/Locator"
+            "$ref": "urn:perchcore:api:v1.4:common#/$defs/Locator"
           }
         },
         "required": [
@@ -665,6 +809,7 @@
         "FFI_BAD_ARGS",
         "TXT_BAD_HANDLE",
         "HANDLE_WRONG_KIND",
+        "CONTEXT_HANDLE_MISMATCH",
         "TXT_OUT_OF_RANGE"
       ],
       "notes": [
@@ -681,10 +826,10 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 18446744073709551615,
-            "description": "当前进程的共享注册表句柄，0 有效；不能当作指针、布尔值或持久化 ID。"
+            "description": "当前进程的对象句柄，0 有效；属于创建它的 context，不能当作指针、布尔值或持久化 ID。"
           },
           "locator": {
-            "$ref": "urn:perchcore:api:v1:common#/$defs/Locator"
+            "$ref": "urn:perchcore:api:v1.4:common#/$defs/Locator"
           }
         },
         "required": [
@@ -721,7 +866,8 @@
       "errors": [
         "FFI_BAD_ARGS",
         "TXT_BAD_HANDLE",
-        "HANDLE_WRONG_KIND"
+        "HANDLE_WRONG_KIND",
+        "CONTEXT_HANDLE_MISMATCH"
       ],
       "notes": [
         "不调用 Locator.validate。按 txtOffset、txtByteOffset、progression 顺序解析。",
@@ -738,7 +884,7 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 18446744073709551615,
-            "description": "当前进程的共享注册表句柄，0 有效；不能当作指针、布尔值或持久化 ID。"
+            "description": "当前进程的对象句柄，0 有效；属于创建它的 context，不能当作指针、布尔值或持久化 ID。"
           },
           "char": {
             "type": "integer",
@@ -802,6 +948,7 @@
         "FFI_BAD_ARGS",
         "TXT_BAD_HANDLE",
         "HANDLE_WRONG_KIND",
+        "CONTEXT_HANDLE_MISMATCH",
         "TXT_OUT_OF_RANGE"
       ],
       "notes": [
@@ -818,7 +965,7 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 18446744073709551615,
-            "description": "当前进程的共享注册表句柄，0 有效；不能当作指针、布尔值或持久化 ID。"
+            "description": "当前进程的对象句柄，0 有效；属于创建它的 context，不能当作指针、布尔值或持久化 ID。"
           }
         },
         "required": [
@@ -840,7 +987,8 @@
       },
       "errors": [
         "FFI_BAD_ARGS",
-        "HANDLE_WRONG_KIND"
+        "HANDLE_WRONG_KIND",
+        "CONTEXT_HANDLE_MISMATCH"
       ],
       "notes": [
         "重复关闭或未知数字返回 closed:false；错类型不关闭其他对象。"
@@ -908,6 +1056,67 @@
       ]
     },
     {
+      "name": "txt.inspect",
+      "summary": "按路径解码并返回 TXT 统计",
+      "request": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "文件路径，由运行库所在进程访问；推荐绝对路径。"
+          },
+          "encoding": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "additionalProperties": false
+      },
+      "result": {
+        "type": "object",
+        "properties": {
+          "encoding": {
+            "type": "string"
+          },
+          "certain_encoding": {
+            "type": "boolean"
+          },
+          "chars": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 18446744073709551615
+          },
+          "lines": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 18446744073709551615
+          },
+          "had_decode_errors": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "encoding",
+          "certain_encoding",
+          "chars",
+          "lines",
+          "had_decode_errors"
+        ],
+        "additionalProperties": false
+      },
+      "errors": [
+        "FFI_BAD_ARGS",
+        "TXT_IO",
+        "TXT_UNKNOWN_ENCODING"
+      ],
+      "notes": [
+        "API v1.3 新增；解码规则与 txt.open 相同，可显式指定 encoding。统计保留 txt.analyze 的字段名，但不返回 text、不创建句柄。",
+        "仍全量读取/解码，结果大小不随正文长度增长；需要阅读时使用 txt.open/slice，每次最多 20,000 scalar。"
+      ]
+    },
+    {
       "name": "pipeline.open",
       "summary": "打开可恢复的路径导入管线",
       "request": {
@@ -918,13 +1127,13 @@
             "description": "产物根目录，一条管线单独拥有；按 book UUID 建子目录。"
           },
           "policy": {
-            "$ref": "urn:perchcore:api:v1:common#/$defs/Policy"
+            "$ref": "urn:perchcore:api:v1.4:common#/$defs/Policy"
           },
           "max_chars": {
             "type": "integer",
             "minimum": 0,
             "maximum": 18446744073709551615,
-            "description": "抽取上限，按非空白 Unicode scalar 计数。",
+            "description": "抽取上限，按包含空白的 Unicode scalar 计数；EPUB 保留完整节点及其后的分隔符。",
             "default": 5000000
           },
           "chunk_chars": {
@@ -947,12 +1156,12 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 18446744073709551615,
-            "description": "当前进程的共享注册表句柄，0 有效；不能当作指针、布尔值或持久化 ID。"
+            "description": "当前进程的对象句柄，0 有效；属于创建它的 context，不能当作指针、布尔值或持久化 ID。"
           },
           "recovered": {
             "type": "array",
             "items": {
-              "$ref": "urn:perchcore:api:v1:common#/$defs/Recovered"
+              "$ref": "urn:perchcore:api:v1.4:common#/$defs/Recovered"
             }
           }
         },
@@ -966,10 +1175,12 @@
         "FFI_BAD_ARGS",
         "PIPELINE_IO",
         "PIPELINE_POLICY",
-        "PIPELINE_TOO_MANY_OPEN"
+        "PIPELINE_TOO_MANY_OPEN",
+        "HANDLE_ID_EXHAUSTED"
       ],
       "notes": [
-        "创建和扫描目录在策略/配额检查前执行；失败可能已产生目录副作用。恢复规则见 storage.md。"
+        "创建和扫描目录在策略/配额检查前执行；失败可能已产生目录副作用。",
+        "单书损坏会以 registered/indexing 恢复并在 reason 中返回 STORE_* 诊断；恢复规则见 storage.md。"
       ]
     },
     {
@@ -982,7 +1193,7 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 18446744073709551615,
-            "description": "当前进程的共享注册表句柄，0 有效；不能当作指针、布尔值或持久化 ID。"
+            "description": "当前进程的对象句柄，0 有效；属于创建它的 context，不能当作指针、布尔值或持久化 ID。"
           },
           "book": {
             "type": "string",
@@ -1083,7 +1294,8 @@
       "errors": [
         "FFI_BAD_ARGS",
         "PIPELINE_BAD_HANDLE",
-        "HANDLE_WRONG_KIND"
+        "HANDLE_WRONG_KIND",
+        "CONTEXT_HANDLE_MISMATCH"
       ],
       "notes": [
         "已有落盘状态优先于 state 参数；alreadyPresent/notNeeded 的 stage 为 null。",
@@ -1100,7 +1312,7 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 18446744073709551615,
-            "description": "当前进程的共享注册表句柄，0 有效；不能当作指针、布尔值或持久化 ID。"
+            "description": "当前进程的对象句柄，0 有效；属于创建它的 context，不能当作指针、布尔值或持久化 ID。"
           },
           "now_ms": {
             "type": "integer",
@@ -1109,7 +1321,7 @@
             "description": "UTC Unix epoch 毫秒；省略取系统当前时间。"
           },
           "gate": {
-            "$ref": "urn:perchcore:api:v1:common#/$defs/Gate"
+            "$ref": "urn:perchcore:api:v1.4:common#/$defs/Gate"
           }
         },
         "required": [
@@ -1118,12 +1330,13 @@
         "additionalProperties": false
       },
       "result": {
-        "$ref": "urn:perchcore:api:v1:common#/$defs/PipelineStep"
+        "$ref": "urn:perchcore:api:v1.4:common#/$defs/PipelineStep"
       },
       "errors": [
         "FFI_BAD_ARGS",
         "PIPELINE_BAD_HANDLE",
         "HANDLE_WRONG_KIND",
+        "CONTEXT_HANDLE_MISMATCH",
         "PIPELINE_IO"
       ],
       "notes": [
@@ -1141,7 +1354,7 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 18446744073709551615,
-            "description": "当前进程的共享注册表句柄，0 有效；不能当作指针、布尔值或持久化 ID。"
+            "description": "当前进程的对象句柄，0 有效；属于创建它的 context，不能当作指针、布尔值或持久化 ID。"
           }
         },
         "required": [
@@ -1156,7 +1369,7 @@
             "type": "boolean"
           },
           "stats": {
-            "$ref": "urn:perchcore:api:v1:common#/$defs/PipelineStats"
+            "$ref": "urn:perchcore:api:v1.4:common#/$defs/PipelineStats"
           }
         },
         "required": [
@@ -1168,7 +1381,8 @@
       "errors": [
         "FFI_BAD_ARGS",
         "PIPELINE_BAD_HANDLE",
-        "HANDLE_WRONG_KIND"
+        "HANDLE_WRONG_KIND",
+        "CONTEXT_HANDLE_MISMATCH"
       ],
       "notes": []
     },
@@ -1182,7 +1396,7 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 18446744073709551615,
-            "description": "当前进程的共享注册表句柄，0 有效；不能当作指针、布尔值或持久化 ID。"
+            "description": "当前进程的对象句柄，0 有效；属于创建它的 context，不能当作指针、布尔值或持久化 ID。"
           },
           "book": {
             "type": "string",
@@ -1196,12 +1410,13 @@
         "additionalProperties": false
       },
       "result": {
-        "$ref": "urn:perchcore:api:v1:common#/$defs/PipelineState"
+        "$ref": "urn:perchcore:api:v1.4:common#/$defs/PipelineState"
       },
       "errors": [
         "FFI_BAD_ARGS",
         "PIPELINE_BAD_HANDLE",
-        "HANDLE_WRONG_KIND"
+        "HANDLE_WRONG_KIND",
+        "CONTEXT_HANDLE_MISMATCH"
       ],
       "notes": [
         "unknown 仅返回 known:false；结果不含 updatedAtMs。"
@@ -1217,7 +1432,7 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 18446744073709551615,
-            "description": "当前进程的共享注册表句柄，0 有效；不能当作指针、布尔值或持久化 ID。"
+            "description": "当前进程的对象句柄，0 有效；属于创建它的 context，不能当作指针、布尔值或持久化 ID。"
           },
           "book": {
             "type": "string",
@@ -1264,7 +1479,8 @@
       "errors": [
         "FFI_BAD_ARGS",
         "PIPELINE_BAD_HANDLE",
-        "HANDLE_WRONG_KIND"
+        "HANDLE_WRONG_KIND",
+        "CONTEXT_HANDLE_MISMATCH"
       ],
       "notes": [
         "promoted:true 不保证书籍存在或已经排队。"
@@ -1280,7 +1496,7 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 18446744073709551615,
-            "description": "当前进程的共享注册表句柄，0 有效；不能当作指针、布尔值或持久化 ID。"
+            "description": "当前进程的对象句柄，0 有效；属于创建它的 context，不能当作指针、布尔值或持久化 ID。"
           },
           "book": {
             "type": "string",
@@ -1319,6 +1535,7 @@
         "FFI_BAD_ARGS",
         "PIPELINE_BAD_HANDLE",
         "HANDLE_WRONG_KIND",
+        "CONTEXT_HANDLE_MISMATCH",
         "PIPELINE_IO"
       ],
       "notes": [
@@ -1335,7 +1552,7 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 18446744073709551615,
-            "description": "当前进程的共享注册表句柄，0 有效；不能当作指针、布尔值或持久化 ID。"
+            "description": "当前进程的对象句柄，0 有效；属于创建它的 context，不能当作指针、布尔值或持久化 ID。"
           },
           "book": {
             "type": "string",
@@ -1363,7 +1580,8 @@
       "errors": [
         "FFI_BAD_ARGS",
         "PIPELINE_BAD_HANDLE",
-        "HANDLE_WRONG_KIND"
+        "HANDLE_WRONG_KIND",
+        "CONTEXT_HANDLE_MISMATCH"
       ],
       "notes": [
         "不删除源文件/产物；不抢占或中断已在执行的同步 step。"
@@ -1379,7 +1597,7 @@
             "type": "integer",
             "minimum": 0,
             "maximum": 18446744073709551615,
-            "description": "当前进程的共享注册表句柄，0 有效；不能当作指针、布尔值或持久化 ID。"
+            "description": "当前进程的对象句柄，0 有效；属于创建它的 context，不能当作指针、布尔值或持久化 ID。"
           }
         },
         "required": [
@@ -1401,7 +1619,8 @@
       },
       "errors": [
         "FFI_BAD_ARGS",
-        "HANDLE_WRONG_KIND"
+        "HANDLE_WRONG_KIND",
+        "CONTEXT_HANDLE_MISMATCH"
       ],
       "notes": [
         "重复关闭或未知数字返回 closed:false；保留磁盘产物供重开恢复。"
@@ -1439,7 +1658,7 @@
         ]
       },
       "result": {
-        "$ref": "urn:perchcore:api:v1:common#/$defs/PdfInfo"
+        "$ref": "urn:perchcore:api:v1.4:common#/$defs/PdfInfo"
       },
       "errors": [
         "FFI_BAD_ARGS",
@@ -1487,7 +1706,7 @@
           "hits": {
             "type": "array",
             "items": {
-              "$ref": "urn:perchcore:api:v1:common#/$defs/IndexHit"
+              "$ref": "urn:perchcore:api:v1.4:common#/$defs/IndexHit"
             }
           }
         },
@@ -1551,7 +1770,7 @@
           "geometry": {
             "anyOf": [
               {
-                "$ref": "urn:perchcore:api:v1:common#/$defs/Geometry"
+                "$ref": "urn:perchcore:api:v1.4:common#/$defs/Geometry"
               },
               {
                 "type": "null"
@@ -1630,7 +1849,7 @@
           "local": {
             "type": "array",
             "items": {
-              "$ref": "urn:perchcore:api:v1:common#/$defs/Change"
+              "$ref": "urn:perchcore:api:v1.4:common#/$defs/Change"
             },
             "description": "缺省为空数组。",
             "default": []
@@ -1638,7 +1857,7 @@
           "remote": {
             "type": "array",
             "items": {
-              "$ref": "urn:perchcore:api:v1:common#/$defs/Change"
+              "$ref": "urn:perchcore:api:v1.4:common#/$defs/Change"
             },
             "description": "缺省为空数组。",
             "default": []
@@ -1653,11 +1872,11 @@
           "state": {
             "type": "array",
             "items": {
-              "$ref": "urn:perchcore:api:v1:common#/$defs/Change"
+              "$ref": "urn:perchcore:api:v1.4:common#/$defs/Change"
             }
           },
           "stats": {
-            "$ref": "urn:perchcore:api:v1:common#/$defs/MergeStats"
+            "$ref": "urn:perchcore:api:v1.4:common#/$defs/MergeStats"
           },
           "conflictRate": {
             "type": "number"
@@ -1703,7 +1922,7 @@
           "state": {
             "type": "array",
             "items": {
-              "$ref": "urn:perchcore:api:v1:common#/$defs/Change"
+              "$ref": "urn:perchcore:api:v1.4:common#/$defs/Change"
             },
             "description": "缺省为空数组。",
             "default": []
@@ -1736,7 +1955,7 @@
           "changes": {
             "type": "array",
             "items": {
-              "$ref": "urn:perchcore:api:v1:common#/$defs/Change"
+              "$ref": "urn:perchcore:api:v1.4:common#/$defs/Change"
             }
           },
           "nextCursor": {

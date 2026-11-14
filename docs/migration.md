@@ -18,12 +18,18 @@
 ## 保持兼容的部分
 
 - 既有 crate 名称和 0.1.0 版本。
-- `perch_call`、`perch_string_free` 与方法名。
+- `perch_call`、`perch_string_free` 与既有方法名；新调用方可增量使用 `perch_context_call`。
 - 动态/静态库文件名 libperch_ffi / perch_ffi。
 - Locator JSON 内的 perch 扩展和字符单位。
 - Dart 包名 perch_core 与 iOS 插件名 perch_core_ffi。
 
 由于锁定依赖已要求 Rust 1.88，清单最低工具链声明从 1.85 修正为 1.88。新统一入口 perch-core 不替换旧模块接口。
+
+JSON API v1.3 增加文件路径输入。已有 `openBook(bytes)` / `refineBook(bytes)` 继续可用；文件调用优先迁移到 `openBookPath(path)` / `refineBookPath(path)`，TXT 导入统计用 `inspectTextPath(path)`，阅读继续 openTxt/slice。`PerchServices` 提供同名异步方法。调用前确认 API minor 至少为 3；所有权、错误和已知限制见 [路径输入说明](io.md)。
+
+JSON API v1.4 增加 `book.locate`。Dart 同步使用 `locateBook(handle:..., charStart:hit.charStart, charEnd:hit.charEnd)`，服务层使用 `AsyncBookHandle.locate(hit)`，返回类型化 TXT/EPUB 源端点。调用前确认 API major 为 1、minor 至少为 4；已有 book.search 与 Locator 结果保留。Rust 改用 `extract_text_with_source_map` 和 `MappedBookText::locate` 即可获取精确源位置，旧 BookText 与抽取函数仍可用。
+
+旧 index/text 可继续加载和搜索。需要定位时，缺失或无效 sourceMap 会返回专用错误；PathStore 在恢复审计中会将这类 Ready 产物降级为 indexing，重新提供原书后成组重建。自定义 BookStore 需要实现 `save_index_with_source_map` 才能落盘映射，默认实现保留原保存行为。源解码、UTF-16 与节点路径规则见 [搜索命中回源文本](source-location.md)。
 
 ## 旧 App 接入新核心
 

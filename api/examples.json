@@ -1,6 +1,7 @@
 {
   "description": "Replay in one fresh process per client; $var resolves paths/bytes, $ref resolves earlier results. canonical=false intentionally probes runtime permissiveness or malformed input.",
   "source_text": "中文🦀café\r\n第二行\r末尾\n",
+  "location_text": "\r\n甲\r\n\r\n\r\n乙😀é中文",
   "calls": [
     {
       "id": "version",
@@ -20,7 +21,7 @@
         "abi": 1,
         "api": {
           "major": 1,
-          "minor": 1
+          "minor": 4
         },
         "locator": {
           "read": [
@@ -2091,6 +2092,1780 @@
       "args": {
         "handle": {
           "$ref": "txt_quota_release.handle"
+        }
+      },
+      "canonical": true,
+      "expect": {
+        "closed": true
+      }
+    },
+    {
+      "id": "context_first_open",
+      "method": "context.open",
+      "args": {},
+      "canonical": true,
+      "expect": {
+        "context": 1
+      }
+    },
+    {
+      "id": "context_second_open",
+      "method": "context.open",
+      "args": {},
+      "canonical": true,
+      "expect": {
+        "context": 2
+      }
+    },
+    {
+      "id": "context_first_txt",
+      "method": "txt.open",
+      "args": {
+        "path": {
+          "$var": "source"
+        }
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "context_first_open.context"
+      }
+    },
+    {
+      "id": "context_second_txt",
+      "method": "txt.open",
+      "args": {
+        "path": {
+          "$var": "source"
+        }
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "context_second_open.context"
+      }
+    },
+    {
+      "id": "context_first_pipeline",
+      "method": "pipeline.open",
+      "args": {
+        "out_dir": {
+          "$var": "context_out_first"
+        }
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "context_first_open.context"
+      },
+      "expect": {
+        "recovered": []
+      }
+    },
+    {
+      "id": "context_second_pipeline",
+      "method": "pipeline.open",
+      "args": {
+        "out_dir": {
+          "$var": "context_out_second"
+        }
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "context_second_open.context"
+      },
+      "expect": {
+        "recovered": []
+      }
+    },
+    {
+      "id": "context_first_pipeline_quota",
+      "method": "pipeline.open",
+      "args": {
+        "out_dir": {
+          "$var": "context_out_extra"
+        }
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "context_first_open.context"
+      },
+      "error": "PIPELINE_TOO_MANY_OPEN"
+    },
+    {
+      "id": "context_cross_use",
+      "method": "txt.slice",
+      "args": {
+        "handle": {
+          "$ref": "context_first_txt.handle"
+        },
+        "chars": 1
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "context_second_open.context"
+      },
+      "error": "CONTEXT_HANDLE_MISMATCH"
+    },
+    {
+      "id": "context_first_close",
+      "method": "context.close",
+      "args": {
+        "context": {
+          "$ref": "context_first_open.context"
+        }
+      },
+      "canonical": true,
+      "expect": {
+        "closed": true,
+        "released": {
+          "books": 0,
+          "txts": 1,
+          "pipelines": 1
+        }
+      }
+    },
+    {
+      "id": "context_second_slice",
+      "method": "txt.slice",
+      "args": {
+        "handle": {
+          "$ref": "context_second_txt.handle"
+        },
+        "chars": 1
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "context_second_open.context"
+      },
+      "expect": {
+        "text": "中"
+      }
+    },
+    {
+      "id": "context_second_pipeline_status",
+      "method": "pipeline.status",
+      "args": {
+        "handle": {
+          "$ref": "context_second_pipeline.handle"
+        }
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "context_second_open.context"
+      },
+      "expect": {
+        "idle": true
+      }
+    },
+    {
+      "id": "context_closed_call",
+      "method": "version",
+      "args": {},
+      "canonical": true,
+      "context": {
+        "$ref": "context_first_open.context"
+      },
+      "error": "CONTEXT_BAD_HANDLE"
+    },
+    {
+      "id": "context_first_close_twice",
+      "method": "context.close",
+      "args": {
+        "context": {
+          "$ref": "context_first_open.context"
+        }
+      },
+      "canonical": true,
+      "expect": {
+        "closed": false,
+        "released": {
+          "books": 0,
+          "txts": 0,
+          "pipelines": 0
+        }
+      }
+    },
+    {
+      "id": "context_second_close",
+      "method": "context.close",
+      "args": {
+        "context": {
+          "$ref": "context_second_open.context"
+        }
+      },
+      "canonical": true,
+      "expect": {
+        "closed": true,
+        "released": {
+          "books": 0,
+          "txts": 1,
+          "pipelines": 1
+        }
+      }
+    },
+    {
+      "id": "inspect_path",
+      "method": "txt.inspect",
+      "args": {
+        "path": {
+          "$var": "source"
+        }
+      },
+      "canonical": true,
+      "expect": {
+        "chars": 17,
+        "lines": 3
+      }
+    },
+    {
+      "id": "inspect_gbk",
+      "method": "txt.inspect",
+      "args": {
+        "path": {
+          "$var": "gbk"
+        },
+        "encoding": "gbk"
+      },
+      "canonical": true,
+      "expect": {
+        "encoding": "GBK",
+        "certain_encoding": true
+      }
+    },
+    {
+      "id": "inspect_big5",
+      "method": "txt.inspect",
+      "args": {
+        "path": {
+          "$var": "big5"
+        },
+        "encoding": "big5"
+      },
+      "canonical": true,
+      "expect": {
+        "encoding": "Big5",
+        "certain_encoding": true
+      }
+    },
+    {
+      "id": "inspect_large",
+      "method": "txt.inspect",
+      "args": {
+        "path": {
+          "$var": "long_line"
+        }
+      },
+      "canonical": true
+    },
+    {
+      "id": "inspect_missing",
+      "method": "txt.inspect",
+      "args": {
+        "path": {
+          "$var": "missing"
+        }
+      },
+      "canonical": true,
+      "error": "TXT_IO"
+    },
+    {
+      "id": "inspect_encoding",
+      "method": "txt.inspect",
+      "args": {
+        "path": {
+          "$var": "source"
+        },
+        "encoding": "invalid-label"
+      },
+      "canonical": true,
+      "error": "TXT_UNKNOWN_ENCODING"
+    },
+    {
+      "id": "refine_path",
+      "method": "jobs.refine",
+      "args": {
+        "path": {
+          "$var": "source"
+        },
+        "format": "txt"
+      },
+      "canonical": true
+    },
+    {
+      "id": "refine_epub_path",
+      "method": "jobs.refine",
+      "args": {
+        "path": {
+          "$var": "epub"
+        },
+        "format": "epub"
+      },
+      "canonical": true
+    },
+    {
+      "id": "refine_path_limited",
+      "method": "jobs.refine",
+      "args": {
+        "path": {
+          "$var": "source"
+        },
+        "max_chars": 3
+      },
+      "canonical": true,
+      "expect": {
+        "charCount": 3
+      }
+    },
+    {
+      "id": "refine_path_missing",
+      "method": "jobs.refine",
+      "args": {
+        "path": {
+          "$var": "missing"
+        }
+      },
+      "canonical": true,
+      "error": "JOBS_IO"
+    },
+    {
+      "id": "book_path_missing",
+      "method": "book.open",
+      "args": {
+        "path": {
+          "$var": "missing"
+        }
+      },
+      "canonical": true,
+      "error": "BOOK_OPEN_IO"
+    },
+    {
+      "id": "refine_path_neither",
+      "method": "jobs.refine",
+      "args": {},
+      "canonical": false,
+      "error": "FFI_BAD_ARGS"
+    },
+    {
+      "id": "refine_path_both",
+      "method": "jobs.refine",
+      "args": {
+        "path": {
+          "$var": "source"
+        },
+        "bytes_hex": ""
+      },
+      "canonical": false,
+      "error": "FFI_BAD_ARGS"
+    },
+    {
+      "id": "refine_path_null_path",
+      "method": "jobs.refine",
+      "args": {
+        "path": null
+      },
+      "canonical": false,
+      "error": "FFI_BAD_ARGS"
+    },
+    {
+      "id": "refine_path_null_both",
+      "method": "jobs.refine",
+      "args": {
+        "path": null,
+        "bytes_hex": "00"
+      },
+      "canonical": false,
+      "error": "FFI_BAD_ARGS"
+    },
+    {
+      "id": "refine_path_bad_epub",
+      "method": "jobs.refine",
+      "args": {
+        "path": {
+          "$var": "source"
+        },
+        "format": "epub"
+      },
+      "canonical": true,
+      "error": "JOBS_EPUB"
+    },
+    {
+      "id": "book_path_neither",
+      "method": "book.open",
+      "args": {},
+      "canonical": false,
+      "error": "FFI_BAD_ARGS"
+    },
+    {
+      "id": "book_path_both",
+      "method": "book.open",
+      "args": {
+        "path": {
+          "$var": "source"
+        },
+        "bytes_hex": ""
+      },
+      "canonical": false,
+      "error": "FFI_BAD_ARGS"
+    },
+    {
+      "id": "book_path_null_path",
+      "method": "book.open",
+      "args": {
+        "path": null
+      },
+      "canonical": false,
+      "error": "FFI_BAD_ARGS"
+    },
+    {
+      "id": "book_path_null_both",
+      "method": "book.open",
+      "args": {
+        "path": null,
+        "bytes_hex": "00"
+      },
+      "canonical": false,
+      "error": "FFI_BAD_ARGS"
+    },
+    {
+      "id": "book_path_bad_epub",
+      "method": "book.open",
+      "args": {
+        "path": {
+          "$var": "source"
+        },
+        "format": "epub"
+      },
+      "canonical": true,
+      "error": "JOBS_EPUB"
+    },
+    {
+      "id": "path_context",
+      "method": "context.open",
+      "args": {},
+      "canonical": true
+    },
+    {
+      "id": "book_path",
+      "method": "book.open",
+      "args": {
+        "path": {
+          "$var": "source"
+        },
+        "format": "txt",
+        "chunk_chars": 0
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "path_context.context"
+      }
+    },
+    {
+      "id": "book_path_search",
+      "method": "book.search",
+      "args": {
+        "handle": {
+          "$ref": "book_path.handle"
+        },
+        "query": "中文"
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "path_context.context"
+      }
+    },
+    {
+      "id": "book_epub_path",
+      "method": "book.open",
+      "args": {
+        "path": {
+          "$var": "epub"
+        },
+        "format": "epub"
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "path_context.context"
+      }
+    },
+    {
+      "id": "book_epub_path_search",
+      "method": "book.search",
+      "args": {
+        "handle": {
+          "$ref": "book_epub_path.handle"
+        },
+        "query": "海风"
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "path_context.context"
+      }
+    },
+    {
+      "id": "book_path_cross_context",
+      "method": "book.search",
+      "args": {
+        "handle": {
+          "$ref": "book_path.handle"
+        },
+        "query": "中文"
+      },
+      "canonical": true,
+      "error": "CONTEXT_HANDLE_MISMATCH"
+    },
+    {
+      "id": "path_context_close",
+      "method": "context.close",
+      "args": {
+        "context": {
+          "$ref": "path_context.context"
+        }
+      },
+      "canonical": true,
+      "expect": {
+        "closed": true,
+        "released": {
+          "books": 2,
+          "txts": 0,
+          "pipelines": 0
+        }
+      }
+    },
+    {
+      "id": "loc_context",
+      "method": "context.open",
+      "args": {},
+      "canonical": true
+    },
+    {
+      "id": "loc_txt_open",
+      "method": "book.open",
+      "args": {
+        "bytes_hex": "0d0ae794b20d0a0d0a0d0ae4b999f09f988065cc81e4b8ade69687",
+        "format": "txt",
+        "chunk_chars": 2
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "loc_context.context"
+      },
+      "expect": {
+        "charCount": 9
+      }
+    },
+    {
+      "id": "loc_txt_search",
+      "method": "book.search",
+      "args": {
+        "handle": {
+          "$ref": "loc_txt_open.handle"
+        },
+        "query": "乙"
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "loc_context.context"
+      }
+    },
+    {
+      "id": "loc_txt",
+      "method": "book.locate",
+      "args": {
+        "handle": {
+          "$ref": "loc_txt_open.handle"
+        },
+        "char_start": {
+          "$ref": "loc_txt_search.hits.0.charStart"
+        },
+        "char_end": {
+          "$ref": "loc_txt_search.hits.0.charEnd"
+        }
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "loc_context.context"
+      },
+      "expect": {
+        "start": {
+          "kind": "txt",
+          "charOffset": 9,
+          "byteOffset": 11
+        },
+        "end": {
+          "kind": "txt",
+          "charOffset": 10,
+          "byteOffset": 14
+        },
+        "containsSynthetic": false
+      }
+    },
+    {
+      "id": "loc_txt_emoji",
+      "method": "book.locate",
+      "args": {
+        "handle": {
+          "$ref": "loc_txt_open.handle"
+        },
+        "char_start": 4,
+        "char_end": 5
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "loc_context.context"
+      },
+      "expect": {
+        "start": {
+          "kind": "txt",
+          "charOffset": 10,
+          "byteOffset": 14
+        },
+        "end": {
+          "kind": "txt",
+          "charOffset": 11,
+          "byteOffset": 18
+        },
+        "containsSynthetic": false
+      }
+    },
+    {
+      "id": "loc_txt_combining",
+      "method": "book.locate",
+      "args": {
+        "handle": {
+          "$ref": "loc_txt_open.handle"
+        },
+        "char_start": 5,
+        "char_end": 7
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "loc_context.context"
+      },
+      "expect": {
+        "start": {
+          "kind": "txt",
+          "charOffset": 11,
+          "byteOffset": 18
+        },
+        "end": {
+          "kind": "txt",
+          "charOffset": 13,
+          "byteOffset": 21
+        },
+        "containsSynthetic": false
+      }
+    },
+    {
+      "id": "loc_txt_collapsed",
+      "method": "book.locate",
+      "args": {
+        "handle": {
+          "$ref": "loc_txt_open.handle"
+        },
+        "char_start": 2,
+        "char_end": 3
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "loc_context.context"
+      },
+      "expect": {
+        "start": {
+          "kind": "txt",
+          "charOffset": 5,
+          "byteOffset": 7
+        },
+        "end": {
+          "kind": "txt",
+          "charOffset": 9,
+          "byteOffset": 11
+        },
+        "containsSynthetic": false
+      }
+    },
+    {
+      "id": "loc_range_empty",
+      "method": "book.locate",
+      "args": {
+        "handle": {
+          "$ref": "loc_txt_open.handle"
+        },
+        "char_start": 0,
+        "char_end": 0
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "loc_context.context"
+      },
+      "error": "BOOK_LOCATE_BAD_RANGE"
+    },
+    {
+      "id": "loc_range_reversed",
+      "method": "book.locate",
+      "args": {
+        "handle": {
+          "$ref": "loc_txt_open.handle"
+        },
+        "char_start": 5,
+        "char_end": 4
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "loc_context.context"
+      },
+      "error": "BOOK_LOCATE_BAD_RANGE"
+    },
+    {
+      "id": "loc_range_past_end",
+      "method": "book.locate",
+      "args": {
+        "handle": {
+          "$ref": "loc_txt_open.handle"
+        },
+        "char_start": 0,
+        "char_end": 10
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "loc_context.context"
+      },
+      "error": "BOOK_LOCATE_BAD_RANGE"
+    },
+    {
+      "id": "loc_range_negative",
+      "method": "book.locate",
+      "args": {
+        "handle": {
+          "$ref": "loc_txt_open.handle"
+        },
+        "char_start": -1,
+        "char_end": 1
+      },
+      "canonical": false,
+      "context": {
+        "$ref": "loc_context.context"
+      },
+      "error": "BOOK_LOCATE_BAD_RANGE"
+    },
+    {
+      "id": "loc_range_string",
+      "method": "book.locate",
+      "args": {
+        "handle": {
+          "$ref": "loc_txt_open.handle"
+        },
+        "char_start": "0",
+        "char_end": 1
+      },
+      "canonical": false,
+      "context": {
+        "$ref": "loc_context.context"
+      },
+      "error": "BOOK_LOCATE_BAD_RANGE"
+    },
+    {
+      "id": "loc_range_boolean",
+      "method": "book.locate",
+      "args": {
+        "handle": {
+          "$ref": "loc_txt_open.handle"
+        },
+        "char_start": false,
+        "char_end": 1
+      },
+      "canonical": false,
+      "context": {
+        "$ref": "loc_context.context"
+      },
+      "error": "BOOK_LOCATE_BAD_RANGE"
+    },
+    {
+      "id": "loc_range_missing",
+      "method": "book.locate",
+      "args": {
+        "handle": {
+          "$ref": "loc_txt_open.handle"
+        },
+        "char_start": 0
+      },
+      "canonical": false,
+      "context": {
+        "$ref": "loc_context.context"
+      },
+      "error": "BOOK_LOCATE_BAD_RANGE"
+    },
+    {
+      "id": "loc_cross_context",
+      "method": "book.locate",
+      "args": {
+        "handle": {
+          "$ref": "loc_txt_open.handle"
+        },
+        "char_start": {
+          "$ref": "loc_txt_search.hits.0.charStart"
+        },
+        "char_end": {
+          "$ref": "loc_txt_search.hits.0.charEnd"
+        }
+      },
+      "canonical": true,
+      "error": "CONTEXT_HANDLE_MISMATCH"
+    },
+    {
+      "id": "loc_txt_reader",
+      "method": "txt.open",
+      "args": {
+        "path": {
+          "$var": "loc_source"
+        }
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "loc_context.context"
+      }
+    },
+    {
+      "id": "loc_txt_read",
+      "method": "txt.slice",
+      "args": {
+        "handle": {
+          "$ref": "loc_txt_reader.handle"
+        },
+        "start": {
+          "$ref": "loc_txt.start.charOffset"
+        },
+        "chars": 1
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "loc_context.context"
+      },
+      "expect": {
+        "text": "乙"
+      }
+    },
+    {
+      "id": "loc_wrong_kind",
+      "method": "book.locate",
+      "args": {
+        "handle": {
+          "$ref": "loc_txt_reader.handle"
+        },
+        "char_start": 0,
+        "char_end": 1
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "loc_context.context"
+      },
+      "error": "HANDLE_WRONG_KIND"
+    },
+    {
+      "id": "loc_txt_path_open",
+      "method": "book.open",
+      "args": {
+        "path": {
+          "$var": "loc_source"
+        },
+        "format": "txt",
+        "chunk_chars": 2
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "loc_context.context"
+      }
+    },
+    {
+      "id": "loc_txt_path",
+      "method": "book.locate",
+      "args": {
+        "handle": {
+          "$ref": "loc_txt_path_open.handle"
+        },
+        "char_start": {
+          "$ref": "loc_txt_search.hits.0.charStart"
+        },
+        "char_end": {
+          "$ref": "loc_txt_search.hits.0.charEnd"
+        }
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "loc_context.context"
+      }
+    },
+    {
+      "id": "loc_gbk_open",
+      "method": "book.open",
+      "args": {
+        "path": {
+          "$var": "gbk"
+        },
+        "format": "txt"
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "loc_context.context"
+      }
+    },
+    {
+      "id": "loc_gbk_search",
+      "method": "book.search",
+      "args": {
+        "handle": {
+          "$ref": "loc_gbk_open.handle"
+        },
+        "query": "中文"
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "loc_context.context"
+      }
+    },
+    {
+      "id": "loc_gbk",
+      "method": "book.locate",
+      "args": {
+        "handle": {
+          "$ref": "loc_gbk_open.handle"
+        },
+        "char_start": {
+          "$ref": "loc_gbk_search.hits.0.charStart"
+        },
+        "char_end": {
+          "$ref": "loc_gbk_search.hits.0.charEnd"
+        }
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "loc_context.context"
+      }
+    },
+    {
+      "id": "loc_gbk_close",
+      "method": "book.close",
+      "args": {
+        "handle": {
+          "$ref": "loc_gbk_open.handle"
+        }
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "loc_context.context"
+      }
+    },
+    {
+      "id": "loc_big5_open",
+      "method": "book.open",
+      "args": {
+        "path": {
+          "$var": "big5"
+        },
+        "format": "txt"
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "loc_context.context"
+      }
+    },
+    {
+      "id": "loc_big5_search",
+      "method": "book.search",
+      "args": {
+        "handle": {
+          "$ref": "loc_big5_open.handle"
+        },
+        "query": "中文"
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "loc_context.context"
+      }
+    },
+    {
+      "id": "loc_big5",
+      "method": "book.locate",
+      "args": {
+        "handle": {
+          "$ref": "loc_big5_open.handle"
+        },
+        "char_start": {
+          "$ref": "loc_big5_search.hits.0.charStart"
+        },
+        "char_end": {
+          "$ref": "loc_big5_search.hits.0.charEnd"
+        }
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "loc_context.context"
+      }
+    },
+    {
+      "id": "loc_big5_close",
+      "method": "book.close",
+      "args": {
+        "handle": {
+          "$ref": "loc_big5_open.handle"
+        }
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "loc_context.context"
+      }
+    },
+    {
+      "id": "loc_epub_open",
+      "method": "book.open",
+      "args": {
+        "path": {
+          "$var": "epub"
+        },
+        "format": "epub"
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "loc_context.context"
+      }
+    },
+    {
+      "id": "loc_epub_search",
+      "method": "book.search",
+      "args": {
+        "handle": {
+          "$ref": "loc_epub_open.handle"
+        },
+        "query": "海风"
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "loc_context.context"
+      }
+    },
+    {
+      "id": "loc_epub",
+      "method": "book.locate",
+      "args": {
+        "handle": {
+          "$ref": "loc_epub_open.handle"
+        },
+        "char_start": {
+          "$ref": "loc_epub_search.hits.0.charStart"
+        },
+        "char_end": {
+          "$ref": "loc_epub_search.hits.0.charEnd"
+        }
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "loc_context.context"
+      },
+      "expect": {
+        "start": {
+          "kind": "epub",
+          "href": "/OEBPS/text/ch01.xhtml",
+          "scalarOffset": 0,
+          "utf16Offset": 0
+        },
+        "end": {
+          "kind": "epub",
+          "scalarOffset": 2,
+          "utf16Offset": 2
+        },
+        "containsSynthetic": false
+      }
+    },
+    {
+      "id": "loc_epub_cafe_search",
+      "method": "book.search",
+      "args": {
+        "handle": {
+          "$ref": "loc_epub_open.handle"
+        },
+        "query": "café"
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "loc_context.context"
+      }
+    },
+    {
+      "id": "loc_epub_utf16",
+      "method": "book.locate",
+      "args": {
+        "handle": {
+          "$ref": "loc_epub_open.handle"
+        },
+        "char_start": {
+          "$ref": "loc_epub_cafe_search.hits.0.charStart"
+        },
+        "char_end": {
+          "$ref": "loc_epub_cafe_search.hits.0.charEnd"
+        }
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "loc_context.context"
+      },
+      "expect": {
+        "start": {
+          "scalarOffset": 5,
+          "utf16Offset": 6
+        },
+        "end": {
+          "scalarOffset": 10,
+          "utf16Offset": 11
+        },
+        "containsSynthetic": false
+      }
+    },
+    {
+      "id": "loc_epub_synthetic",
+      "method": "book.locate",
+      "args": {
+        "handle": {
+          "$ref": "loc_epub_open.handle"
+        },
+        "char_start": 3,
+        "char_end": 4
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "loc_context.context"
+      },
+      "error": "BOOK_SOURCE_UNMAPPABLE"
+    },
+    {
+      "id": "loc_epub_inward_start",
+      "method": "book.locate",
+      "args": {
+        "handle": {
+          "$ref": "loc_epub_open.handle"
+        },
+        "char_start": 3,
+        "char_end": 6
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "loc_context.context"
+      },
+      "expect": {
+        "start": {
+          "scalarOffset": 0,
+          "utf16Offset": 0
+        },
+        "end": {
+          "scalarOffset": 2,
+          "utf16Offset": 2
+        },
+        "containsSynthetic": true
+      }
+    },
+    {
+      "id": "loc_epub_inward_end",
+      "method": "book.locate",
+      "args": {
+        "handle": {
+          "$ref": "loc_epub_open.handle"
+        },
+        "char_start": 0,
+        "char_end": 4
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "loc_context.context"
+      },
+      "expect": {
+        "start": {
+          "scalarOffset": 0
+        },
+        "end": {
+          "scalarOffset": 3,
+          "utf16Offset": 3
+        },
+        "containsSynthetic": true
+      }
+    },
+    {
+      "id": "loc_epub_cross_chapters",
+      "method": "book.locate",
+      "args": {
+        "handle": {
+          "$ref": "loc_epub_open.handle"
+        },
+        "char_start": 0,
+        "char_end": {
+          "$ref": "loc_epub_open.charCount"
+        }
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "loc_context.context"
+      },
+      "expect": {
+        "start": {
+          "href": "/OEBPS/text/ch01.xhtml"
+        },
+        "end": {
+          "href": "/OEBPS/text/ch02.xhtml"
+        },
+        "containsSynthetic": true
+      }
+    },
+    {
+      "id": "loc_pipeline_open",
+      "method": "pipeline.open",
+      "args": {
+        "out_dir": {
+          "$var": "loc_out"
+        },
+        "chunk_chars": 2
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "loc_context.context"
+      }
+    },
+    {
+      "id": "loc_pipeline_enqueue",
+      "method": "pipeline.enqueue",
+      "args": {
+        "handle": {
+          "$ref": "loc_pipeline_open.handle"
+        },
+        "book": "00000000-0000-4000-8000-000000000005",
+        "path": {
+          "$var": "loc_source"
+        },
+        "format": "txt"
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "loc_context.context"
+      }
+    },
+    {
+      "id": "loc_pipeline_refine",
+      "method": "pipeline.step",
+      "args": {
+        "handle": {
+          "$ref": "loc_pipeline_open.handle"
+        },
+        "now_ms": 1000
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "loc_context.context"
+      },
+      "expect": {
+        "outcome": "refined"
+      }
+    },
+    {
+      "id": "loc_pipeline_index",
+      "method": "pipeline.step",
+      "args": {
+        "handle": {
+          "$ref": "loc_pipeline_open.handle"
+        },
+        "now_ms": 2000
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "loc_context.context"
+      },
+      "expect": {
+        "outcome": "indexed"
+      }
+    },
+    {
+      "id": "loc_load",
+      "method": "book.load",
+      "args": {
+        "index_path": {
+          "$var": "loc_index"
+        },
+        "text_path": {
+          "$var": "loc_text_json"
+        }
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "loc_context.context"
+      }
+    },
+    {
+      "id": "loc_load_search",
+      "method": "book.search",
+      "args": {
+        "handle": {
+          "$ref": "loc_load.handle"
+        },
+        "query": "乙"
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "loc_context.context"
+      }
+    },
+    {
+      "id": "loc_loaded",
+      "method": "book.locate",
+      "args": {
+        "handle": {
+          "$ref": "loc_load.handle"
+        },
+        "char_start": {
+          "$ref": "loc_txt_search.hits.0.charStart"
+        },
+        "char_end": {
+          "$ref": "loc_txt_search.hits.0.charEnd"
+        }
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "loc_context.context"
+      }
+    },
+    {
+      "action": "source_map_variants"
+    },
+    {
+      "id": "loc_missing_map_load",
+      "method": "book.load",
+      "args": {
+        "index_path": {
+          "$var": "loc_index"
+        },
+        "text_path": {
+          "$var": "missing_map"
+        }
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "loc_context.context"
+      }
+    },
+    {
+      "id": "loc_missing_map_search",
+      "method": "book.search",
+      "args": {
+        "handle": {
+          "$ref": "loc_missing_map_load.handle"
+        },
+        "query": "乙"
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "loc_context.context"
+      }
+    },
+    {
+      "id": "loc_missing_map",
+      "method": "book.locate",
+      "args": {
+        "handle": {
+          "$ref": "loc_missing_map_load.handle"
+        },
+        "char_start": {
+          "$ref": "loc_txt_search.hits.0.charStart"
+        },
+        "char_end": {
+          "$ref": "loc_txt_search.hits.0.charEnd"
+        }
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "loc_context.context"
+      },
+      "error": "BOOK_SOURCE_MAP_MISSING"
+    },
+    {
+      "id": "loc_missing_map_close",
+      "method": "book.close",
+      "args": {
+        "handle": {
+          "$ref": "loc_missing_map_load.handle"
+        }
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "loc_context.context"
+      }
+    },
+    {
+      "id": "loc_future_map_load",
+      "method": "book.load",
+      "args": {
+        "index_path": {
+          "$var": "loc_index"
+        },
+        "text_path": {
+          "$var": "future_map"
+        }
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "loc_context.context"
+      }
+    },
+    {
+      "id": "loc_future_map_search",
+      "method": "book.search",
+      "args": {
+        "handle": {
+          "$ref": "loc_future_map_load.handle"
+        },
+        "query": "乙"
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "loc_context.context"
+      }
+    },
+    {
+      "id": "loc_future_map",
+      "method": "book.locate",
+      "args": {
+        "handle": {
+          "$ref": "loc_future_map_load.handle"
+        },
+        "char_start": {
+          "$ref": "loc_txt_search.hits.0.charStart"
+        },
+        "char_end": {
+          "$ref": "loc_txt_search.hits.0.charEnd"
+        }
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "loc_context.context"
+      },
+      "error": "BOOK_SOURCE_MAP_UNSUPPORTED_VERSION"
+    },
+    {
+      "id": "loc_future_map_close",
+      "method": "book.close",
+      "args": {
+        "handle": {
+          "$ref": "loc_future_map_load.handle"
+        }
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "loc_context.context"
+      }
+    },
+    {
+      "id": "loc_bad_map_load",
+      "method": "book.load",
+      "args": {
+        "index_path": {
+          "$var": "loc_index"
+        },
+        "text_path": {
+          "$var": "bad_map"
+        }
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "loc_context.context"
+      }
+    },
+    {
+      "id": "loc_bad_map_search",
+      "method": "book.search",
+      "args": {
+        "handle": {
+          "$ref": "loc_bad_map_load.handle"
+        },
+        "query": "乙"
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "loc_context.context"
+      }
+    },
+    {
+      "id": "loc_bad_map",
+      "method": "book.locate",
+      "args": {
+        "handle": {
+          "$ref": "loc_bad_map_load.handle"
+        },
+        "char_start": {
+          "$ref": "loc_txt_search.hits.0.charStart"
+        },
+        "char_end": {
+          "$ref": "loc_txt_search.hits.0.charEnd"
+        }
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "loc_context.context"
+      },
+      "error": "BOOK_SOURCE_MAP_INVALID"
+    },
+    {
+      "id": "loc_bad_map_close",
+      "method": "book.close",
+      "args": {
+        "handle": {
+          "$ref": "loc_bad_map_load.handle"
+        }
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "loc_context.context"
+      }
+    },
+    {
+      "id": "loc_null_map_load",
+      "method": "book.load",
+      "args": {
+        "index_path": {
+          "$var": "loc_index"
+        },
+        "text_path": {
+          "$var": "null_map"
+        }
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "loc_context.context"
+      }
+    },
+    {
+      "id": "loc_null_map_search",
+      "method": "book.search",
+      "args": {
+        "handle": {
+          "$ref": "loc_null_map_load.handle"
+        },
+        "query": "乙"
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "loc_context.context"
+      }
+    },
+    {
+      "id": "loc_null_map",
+      "method": "book.locate",
+      "args": {
+        "handle": {
+          "$ref": "loc_null_map_load.handle"
+        },
+        "char_start": {
+          "$ref": "loc_txt_search.hits.0.charStart"
+        },
+        "char_end": {
+          "$ref": "loc_txt_search.hits.0.charEnd"
+        }
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "loc_context.context"
+      },
+      "error": "BOOK_SOURCE_MAP_INVALID"
+    },
+    {
+      "id": "loc_null_map_close",
+      "method": "book.close",
+      "args": {
+        "handle": {
+          "$ref": "loc_null_map_load.handle"
+        }
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "loc_context.context"
+      }
+    },
+    {
+      "id": "loc_legacy_load",
+      "method": "book.load",
+      "args": {
+        "index_path": {
+          "$var": "legacy_index"
+        },
+        "text_path": {
+          "$var": "legacy_text"
+        }
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "loc_context.context"
+      }
+    },
+    {
+      "id": "loc_legacy_search",
+      "method": "book.search",
+      "args": {
+        "handle": {
+          "$ref": "loc_legacy_load.handle"
+        },
+        "query": "a"
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "loc_context.context"
+      }
+    },
+    {
+      "id": "loc_legacy",
+      "method": "book.locate",
+      "args": {
+        "handle": {
+          "$ref": "loc_legacy_load.handle"
+        },
+        "char_start": 0,
+        "char_end": 1
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "loc_context.context"
+      },
+      "error": "BOOK_SOURCE_MAP_MISSING"
+    },
+    {
+      "id": "loc_legacy_close",
+      "method": "book.close",
+      "args": {
+        "handle": {
+          "$ref": "loc_legacy_load.handle"
+        }
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "loc_context.context"
+      }
+    },
+    {
+      "id": "loc_context_close",
+      "method": "context.close",
+      "args": {
+        "context": {
+          "$ref": "loc_context.context"
+        }
+      },
+      "canonical": true,
+      "expect": {
+        "closed": true,
+        "released": {
+          "books": 4,
+          "txts": 1,
+          "pipelines": 1
+        }
+      }
+    },
+    {
+      "id": "loc_context_closed",
+      "method": "book.locate",
+      "args": {
+        "handle": {
+          "$ref": "loc_txt_open.handle"
+        },
+        "char_start": {
+          "$ref": "loc_txt_search.hits.0.charStart"
+        },
+        "char_end": {
+          "$ref": "loc_txt_search.hits.0.charEnd"
+        }
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "loc_context.context"
+      },
+      "error": "CONTEXT_BAD_HANDLE"
+    },
+    {
+      "id": "loc_handle_closed",
+      "method": "book.locate",
+      "args": {
+        "handle": {
+          "$ref": "loc_txt_open.handle"
+        },
+        "char_start": {
+          "$ref": "loc_txt_search.hits.0.charStart"
+        },
+        "char_end": {
+          "$ref": "loc_txt_search.hits.0.charEnd"
+        }
+      },
+      "canonical": true,
+      "error": "BOOK_BAD_HANDLE"
+    },
+    {
+      "action": "corrupt_index",
+      "book": "00000000-0000-4000-8000-000000000001"
+    },
+    {
+      "id": "pipeline_recovery_open",
+      "method": "pipeline.open",
+      "args": {
+        "out_dir": {
+          "$var": "out"
+        }
+      },
+      "canonical": true
+    },
+    {
+      "id": "pipeline_recovery_state",
+      "method": "pipeline.state",
+      "args": {
+        "handle": {
+          "$ref": "pipeline_recovery_open.handle"
+        },
+        "book": "00000000-0000-4000-8000-000000000001"
+      },
+      "canonical": true,
+      "expect": {
+        "known": true,
+        "state": "indexing",
+        "attempts": 0
+      }
+    },
+    {
+      "id": "pipeline_recovery_enqueue",
+      "method": "pipeline.enqueue",
+      "args": {
+        "handle": {
+          "$ref": "pipeline_recovery_open.handle"
+        },
+        "book": "00000000-0000-4000-8000-000000000001",
+        "path": {
+          "$var": "source"
+        },
+        "format": "txt"
+      },
+      "canonical": true,
+      "expect": {
+        "outcome": "queued",
+        "stage": "index",
+        "state": "indexing",
+        "attempts": 0
+      }
+    },
+    {
+      "id": "pipeline_recovery_indexed",
+      "method": "pipeline.step",
+      "args": {
+        "handle": {
+          "$ref": "pipeline_recovery_open.handle"
+        },
+        "now_ms": 1700000000030
+      },
+      "canonical": true,
+      "expect": {
+        "outcome": "indexed",
+        "stage": "index"
+      }
+    },
+    {
+      "id": "pipeline_recovery_close",
+      "method": "pipeline.close",
+      "args": {
+        "handle": {
+          "$ref": "pipeline_recovery_open.handle"
         }
       },
       "canonical": true,

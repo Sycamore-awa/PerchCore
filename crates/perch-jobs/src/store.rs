@@ -33,7 +33,13 @@ use perch_model::{BookId, Format, ImportState};
 use serde::{Deserialize, Serialize};
 
 use crate::pipeline::BookStore;
-use crate::{BookText, Refinement};
+use crate::{BookText, MappedBookText, Refinement};
+
+const RECOVERY_STATE_MISSING: &str = "STORE_STATE_MISSING";
+const RECOVERY_STATE_UNREADABLE: &str = "STORE_STATE_UNREADABLE";
+const RECOVERY_STATE_CORRUPTED: &str = "STORE_STATE_CORRUPTED";
+const RECOVERY_REFINEMENT_INVALID: &str = "STORE_REFINEMENT_INVALID";
+const RECOVERY_INDEX_INVALID: &str = "STORE_INDEX_INVALID";
 
 /// `state.json` 的形状。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -50,7 +56,7 @@ pub struct StateFile {
     /// Stage that failed; absent in older checkpoints.
     #[serde(default)]
     pub failed_stage: Option<perch_pipeline::Stage>,
-    /// Last business failure.
+    /// Last business failure or a `STORE_*` recovery diagnostic.
     #[serde(default)]
     pub reason: Option<String>,
     /// Absolute retry deadline; None means exhausted.
@@ -69,7 +75,7 @@ pub struct Recovered {
     pub attempts: u16,
     /// Failed stage.
     pub failed_stage: Option<perch_pipeline::Stage>,
-    /// Last reason.
+    /// Last business failure or recovery diagnostic.
     pub reason: Option<String>,
     /// Absolute retry deadline.
     pub retry_at_ms: Option<u64>,
@@ -99,8 +105,9 @@ impl PathStore {
     ///
     /// # Errors
     ///
-    /// 目录建不出来、或某个 `state.json` 读不动且**不是**"文件不存在"时返回错误。
-    /// 单个子目录损坏不影响其它书的恢复（损坏的那条会被跳过并计入 [`Self::skipped`]）。
+    /// 目录建不出来或根目录无法扫描时返回错误。单书检查点或产物损坏
+    /// 不会阻断其它书；该书会降级到可安全重做的阶段，并在 [`Recovered::reason`]
+    /// 中带上稳定的 `STORE_*` 原因前缀。
     pub fn new(out_dir: impl Into<PathBuf>) -> Result<Self, String> {
         let out_dir = out_dir.into();
         std::fs::create_dir_all(&out_dir)
@@ -138,16 +145,7 @@ impl PathStore {
             };
             let book = BookId::from_uuid(book);
 
-            let path = entry.path().join("state.json");
-            let bytes = match std::fs::read(&path) {
-                Ok(bytes) => bytes,
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
-                Err(error) => return Err(format!("读不了 {}: {error}", path.display())),
-            };
-            let Ok(state) = serde_json::from_slice::<StateFile>(&bytes) else {
-                // 写坏的单个文件不该让整个启动失败：跳过它，这本会被当成没恢复
-                continue;
-            };
+            let state = self.recover_book(&entry.path());
 
             self.states.insert(book, state.clone());
             self.recovered.push(Recovered {
@@ -162,6 +160,28 @@ impl PathStore {
         // 顺序稳定，便于测试与日志
         self.recovered.sort_by_key(|item| item.book);
         Ok(())
+    }
+
+    fn recover_book(&self, dir: &Path) -> StateFile {
+        let path = dir.join("state.json");
+        let state = match std::fs::read(&path) {
+            Ok(bytes) => match serde_json::from_slice::<StateFile>(&bytes) {
+                Ok(state) => state,
+                Err(error) => recovery_state(
+                    ImportState::Registered,
+                    format!("{RECOVERY_STATE_CORRUPTED}: {error}"),
+                ),
+            },
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => recovery_state(
+                ImportState::Registered,
+                format!("{RECOVERY_STATE_MISSING}: state.json 不存在"),
+            ),
+            Err(error) => recovery_state(
+                ImportState::Registered,
+                format!("{RECOVERY_STATE_UNREADABLE}: {error}"),
+            ),
+        };
+        audit_checkpoint(dir, state)
     }
 
     /// 恢复出来的记录（`new` 时扫描到的）。
@@ -312,6 +332,21 @@ impl BookStore for PathStore {
             .map_err(|error| format!("序列化 text.json 失败: {error}"))?;
         write_atomic(&dir.join("text.json"), &bytes)
     }
+
+    fn save_index_with_source_map(
+        &mut self,
+        book: BookId,
+        index: perch_index::Index,
+        text: MappedBookText,
+    ) -> Result<(), String> {
+        let dir = self.book_dir(book);
+        index
+            .save_to(dir.join("index.bin"))
+            .map_err(|error| format!("写 index.bin 失败: {error}"))?;
+        let bytes = crate::mapped_book_text_to_vec(&text)
+            .map_err(|error| format!("序列化 text.json 失败: {error}"))?;
+        write_atomic(&dir.join("text.json"), &bytes)
+    }
 }
 
 /// 原子写：先写 `.tmp` 再 `rename`。
@@ -330,6 +365,77 @@ fn write_atomic(path: &Path, bytes: &[u8]) -> Result<(), String> {
         std::fs::remove_file(&temp).ok();
         format!("rename 到 {} 失败: {error}", path.display())
     })
+}
+
+fn recovery_state(state: ImportState, reason: String) -> StateFile {
+    StateFile {
+        state,
+        attempts: 0,
+        updated_at_ms: 0,
+        failed_stage: None,
+        reason: Some(reason),
+        retry_at_ms: None,
+    }
+}
+
+fn audit_checkpoint(dir: &Path, mut state: StateFile) -> StateFile {
+    let needs_refinement = matches!(state.state, ImportState::Indexing | ImportState::Ready)
+        || (state.state == ImportState::Failed
+            && state.failed_stage == Some(perch_pipeline::Stage::Index));
+
+    if needs_refinement && let Err(error) = audit_refinement(dir) {
+        let reason = format!("{RECOVERY_REFINEMENT_INVALID}: {error}");
+        if state.state == ImportState::Failed {
+            state.failed_stage = Some(perch_pipeline::Stage::Refine);
+            state.reason = Some(append_recovery_reason(state.reason.take(), reason));
+        } else {
+            state = recovery_state(ImportState::Registered, reason);
+        }
+        return state;
+    }
+
+    if state.state == ImportState::Ready
+        && let Err(error) = audit_index_group(dir)
+    {
+        return recovery_state(
+            ImportState::Indexing,
+            format!("{RECOVERY_INDEX_INVALID}: {error}"),
+        );
+    }
+
+    state
+}
+
+fn append_recovery_reason(previous: Option<String>, recovery: String) -> String {
+    match previous {
+        Some(previous) => format!("{recovery}; previous: {previous}"),
+        None => recovery,
+    }
+}
+
+fn audit_refinement(dir: &Path) -> Result<(), String> {
+    let path = dir.join("refinement.json");
+    let bytes = std::fs::read(&path).map_err(|error| format!("{}: {error}", path.display()))?;
+    serde_json::from_slice::<Refinement>(&bytes)
+        .map(|_| ())
+        .map_err(|error| format!("{}: {error}", path.display()))
+}
+
+fn audit_index_group(dir: &Path) -> Result<(), String> {
+    let index_path = dir.join("index.bin");
+    let index = perch_index::Index::load_from(&index_path)
+        .map_err(|error| format!("{}: {error}", index_path.display()))?;
+    let text_path = dir.join("text.json");
+    let bytes =
+        std::fs::read(&text_path).map_err(|error| format!("{}: {error}", text_path.display()))?;
+    let text = crate::mapped_book_text_from_slice(&bytes)
+        .map_err(|error| format!("{}: {error}", text_path.display()))?;
+    text.source_map()
+        .map_err(|error| format!("{}: {error}", text_path.display()))?;
+    if index.text() != text.book_text().text {
+        return Err("index.bin 与 text.json 正文不一致".to_owned());
+    }
+    Ok(())
 }
 
 /// 现在（毫秒）。只用于 `state.json` 里的排查字段，不参与任何逻辑判断。
@@ -375,8 +481,23 @@ mod tests {
         ExtractOptions::default()
     }
 
+    fn build_ready_txt(dir: &Path, book: BookId, path: &Path) {
+        let mut pipeline = Pipeline::new(
+            PathStore::new(dir).unwrap(),
+            Policy::default(),
+            options(),
+            64,
+        )
+        .unwrap();
+        pipeline.store_mut().register(book, path, Format::Txt);
+        pipeline.enqueue(book, ImportState::Registered, Priority::Normal);
+        let summary = pipeline.run_until_idle(1_000, Gate::foreground(), 8);
+        assert_eq!(summary.refined, 1);
+        assert_eq!(summary.indexed, 1);
+    }
+
     #[test]
-    fn state_and_attempts_survive_reopen() {
+    fn incomplete_indexing_checkpoint_downgrades_to_refine() {
         let dir = temp_dir("state");
         let book = BookId::new();
 
@@ -387,13 +508,20 @@ mod tests {
             store.record_attempts(book, 2).unwrap();
         }
 
-        // 重新打开：状态与失败次数都要在（次数丢了会无限重试）
+        // indexing 本应已有 refinement.json。缺失表示检查点与产物不一致，
+        // 必须回到阶段二，不能直接把半成品当作可续传的索引阶段。
         let reopened = PathStore::new(&dir).unwrap();
         let recovered = reopened.recovered();
         assert_eq!(recovered.len(), 1);
         assert_eq!(recovered[0].book, book);
-        assert_eq!(recovered[0].state, ImportState::Indexing);
-        assert_eq!(recovered[0].attempts, 2);
+        assert_eq!(recovered[0].state, ImportState::Registered);
+        assert_eq!(recovered[0].attempts, 0);
+        assert!(
+            recovered[0]
+                .reason
+                .as_deref()
+                .is_some_and(|reason| reason.starts_with(RECOVERY_REFINEMENT_INVALID))
+        );
 
         std::fs::remove_dir_all(&dir).ok();
     }
@@ -415,10 +543,11 @@ mod tests {
     }
 
     #[test]
-    fn corrupt_state_file_is_skipped_not_fatal() {
+    fn corrupt_state_file_is_recovered_without_blocking_other_books() {
         let dir = temp_dir("corrupt");
         let good = BookId::new();
         let broken = BookId::new();
+        let missing = BookId::new();
 
         {
             let mut store = PathStore::new(&dir).unwrap();
@@ -429,13 +558,33 @@ mod tests {
         let broken_dir = dir.join(broken.to_string());
         std::fs::create_dir_all(&broken_dir).unwrap();
         std::fs::write(broken_dir.join("state.json"), b"{\"state\": \"ind").unwrap();
+        // UUID 目录已建立、但 state.json 还没提交（模拟首次写检查点前中断）。
+        std::fs::create_dir_all(dir.join(missing.to_string())).unwrap();
         // 还有一个根本不是 UUID 的目录，也该被忽略
         std::fs::create_dir_all(dir.join("not-a-book")).unwrap();
 
         let reopened = PathStore::new(&dir).unwrap();
         let recovered = reopened.recovered();
-        assert_eq!(recovered.len(), 1, "只该恢复出那本好的");
-        assert_eq!(recovered[0].book, good);
+        assert_eq!(recovered.len(), 3);
+        let good = recovered.iter().find(|item| item.book == good).unwrap();
+        assert_eq!(good.state, ImportState::Registered);
+        assert_eq!(good.reason, None);
+        let broken = recovered.iter().find(|item| item.book == broken).unwrap();
+        assert_eq!(broken.state, ImportState::Registered);
+        assert!(
+            broken
+                .reason
+                .as_deref()
+                .is_some_and(|reason| reason.starts_with(RECOVERY_STATE_CORRUPTED))
+        );
+        let missing = recovered.iter().find(|item| item.book == missing).unwrap();
+        assert_eq!(missing.state, ImportState::Registered);
+        assert!(
+            missing
+                .reason
+                .as_deref()
+                .is_some_and(|reason| reason.starts_with(RECOVERY_STATE_MISSING))
+        );
         std::fs::remove_dir_all(&dir).ok();
     }
 
@@ -536,6 +685,207 @@ mod tests {
         assert_eq!(outcome, EnqueueOutcome::NotNeeded);
         assert_eq!(reopened.step(2_000, Gate::foreground()), StepOutcome::Idle);
 
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn pipeline_persists_source_maps_for_txt_and_epub_with_unchanged_index_format() {
+        for (format, content) in [
+            (Format::Txt, "\r\n甲\r\n\r\n\r\n乙😀é".as_bytes().to_vec()),
+            (
+                Format::Epub,
+                build_epub(
+                    &["甲&amp;😀<![CDATA[乙]]><b>重复</b>", "重复"],
+                    false,
+                    false,
+                ),
+            ),
+        ] {
+            let dir = temp_dir("source-map");
+            let book = BookId::new();
+            let path = write_book(&dir, "source", &content);
+            let direct = crate::extract_text_with_source_map(&content, format, options()).unwrap();
+            let mut pipeline = Pipeline::new(
+                PathStore::new(&dir).unwrap(),
+                Policy::default(),
+                options(),
+                64,
+            )
+            .unwrap();
+            pipeline.store_mut().register(book, &path, format);
+            pipeline.enqueue(book, ImportState::Registered, Priority::Normal);
+            assert_eq!(
+                pipeline
+                    .run_until_idle(1_000, Gate::foreground(), 8)
+                    .indexed,
+                1
+            );
+            let book_dir = pipeline.store().book_dir(book);
+            let index_bytes = std::fs::read(book_dir.join("index.bin")).unwrap();
+            let direct_index = index_book(direct.book_text(), 64);
+            assert_eq!(index_bytes.len(), direct_index.to_bytes().len());
+            let loaded_index = perch_index::Index::from_bytes(&index_bytes).unwrap();
+            assert_eq!(loaded_index.text(), direct_index.text());
+            assert_eq!(loaded_index.chunk_chars(), direct_index.chunk_chars());
+            assert_eq!(loaded_index.search("重复"), direct_index.search("重复"));
+            let text_bytes = std::fs::read(book_dir.join("text.json")).unwrap();
+            let loaded = crate::mapped_book_text_from_slice(&text_bytes).unwrap();
+            assert_eq!(loaded, direct);
+            drop(pipeline);
+            std::fs::remove_file(&path).unwrap();
+            let reopened = PathStore::new(&dir).unwrap();
+            assert_eq!(reopened.state(book).unwrap().state, ImportState::Ready);
+            assert_eq!(
+                loaded.locate(0, loaded.char_count()).unwrap(),
+                direct.locate(0, direct.char_count()).unwrap()
+            );
+            std::fs::remove_dir_all(&dir).ok();
+        }
+    }
+
+    #[test]
+    fn ready_artifact_damage_downgrades_only_the_affected_book() {
+        let dir = temp_dir("ready-damage");
+        let healthy = BookId::new();
+        let broken = BookId::new();
+        let healthy_path = write_book(&dir, "healthy.txt", "健康文本".as_bytes());
+        let broken_path = write_book(&dir, "broken.txt", "待修复文本".as_bytes());
+        build_ready_txt(&dir, healthy, &healthy_path);
+        build_ready_txt(&dir, broken, &broken_path);
+
+        std::fs::write(
+            dir.join(broken.to_string()).join("index.bin"),
+            b"not-an-index",
+        )
+        .unwrap();
+
+        let reopened = PathStore::new(&dir).unwrap();
+        assert_eq!(reopened.state(healthy).unwrap().state, ImportState::Ready);
+        let broken_state = reopened.state(broken).unwrap();
+        assert_eq!(broken_state.state, ImportState::Indexing);
+        assert!(
+            broken_state
+                .reason
+                .as_deref()
+                .is_some_and(|reason| reason.starts_with(RECOVERY_INDEX_INVALID))
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn missing_refinement_for_ready_book_restarts_from_refine() {
+        let dir = temp_dir("missing-refinement");
+        let book = BookId::new();
+        let path = write_book(&dir, "book.txt", "章节文本".as_bytes());
+        build_ready_txt(&dir, book, &path);
+        std::fs::remove_file(dir.join(book.to_string()).join("refinement.json")).unwrap();
+
+        let reopened = PathStore::new(&dir).unwrap();
+        let state = reopened.state(book).unwrap();
+        assert_eq!(state.state, ImportState::Registered);
+        assert!(
+            state
+                .reason
+                .as_deref()
+                .is_some_and(|reason| reason.starts_with(RECOVERY_REFINEMENT_INVALID))
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn legacy_body_without_source_map_triggers_stage_three_rebuild() {
+        let dir = temp_dir("legacy-map");
+        let book = BookId::new();
+        let path = write_book(&dir, "book.txt", "需要源映射的文本".as_bytes());
+        build_ready_txt(&dir, book, &path);
+        let book_dir = dir.join(book.to_string());
+        let mapped =
+            crate::mapped_book_text_from_slice(&std::fs::read(book_dir.join("text.json")).unwrap())
+                .unwrap();
+        let legacy = serde_json::to_vec(mapped.book_text()).unwrap();
+        std::fs::write(book_dir.join("text.json"), legacy).unwrap();
+
+        let reopened = PathStore::new(&dir).unwrap();
+        let state = reopened.state(book).unwrap();
+        assert_eq!(state.state, ImportState::Indexing);
+        assert!(state.reason.unwrap().contains("sourceMap"));
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn mismatched_index_and_text_trigger_group_rebuild() {
+        let dir = temp_dir("mismatch");
+        let first = BookId::new();
+        let second = BookId::new();
+        let first_path = write_book(&dir, "first.txt", "第一本书".as_bytes());
+        let second_path = write_book(&dir, "second.txt", "第二本书".as_bytes());
+        build_ready_txt(&dir, first, &first_path);
+        build_ready_txt(&dir, second, &second_path);
+        std::fs::copy(
+            dir.join(second.to_string()).join("index.bin"),
+            dir.join(first.to_string()).join("index.bin"),
+        )
+        .unwrap();
+
+        let reopened = PathStore::new(&dir).unwrap();
+        let state = reopened.state(first).unwrap();
+        assert_eq!(state.state, ImportState::Indexing);
+        assert!(state.reason.unwrap().contains("正文不一致"));
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn downgraded_ready_book_rebuilds_after_source_is_registered() {
+        let dir = temp_dir("rebuild");
+        let book = BookId::new();
+        let path = write_book(&dir, "book.txt", "修复后仍可搜索文本".as_bytes());
+        build_ready_txt(&dir, book, &path);
+        let index_path = dir.join(book.to_string()).join("index.bin");
+        std::fs::write(&index_path, b"broken").unwrap();
+
+        let mut pipeline = pipeline_after_restart(&dir, book, &path);
+        assert_eq!(
+            pipeline.store().state(book).unwrap().state,
+            ImportState::Indexing
+        );
+        let outcome = pipeline.step(2_000, Gate::foreground());
+        assert!(matches!(outcome, StepOutcome::Indexed { book: id, .. } if id == book));
+        assert_eq!(
+            pipeline.store().state(book).unwrap().state,
+            ImportState::Ready
+        );
+        let loaded = perch_index::Index::load_from(index_path).unwrap();
+        assert_eq!(loaded.search("可搜索").len(), 1);
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn missing_source_keeps_old_artifacts_and_reports_index_failure() {
+        let dir = temp_dir("missing-source");
+        let book = BookId::new();
+        let path = write_book(&dir, "book.txt", "旧产物不应被提前删除".as_bytes());
+        build_ready_txt(&dir, book, &path);
+        let book_dir = dir.join(book.to_string());
+        let text_before = std::fs::read(book_dir.join("text.json")).unwrap();
+        std::fs::write(book_dir.join("index.bin"), b"broken").unwrap();
+        std::fs::remove_file(&path).unwrap();
+
+        let mut pipeline = pipeline_after_restart(&dir, book, &path);
+        match pipeline.step(2_000, Gate::foreground()) {
+            StepOutcome::Failed { stage, error, .. } => {
+                assert_eq!(stage, perch_pipeline::Stage::Index);
+                assert!(error.contains("读不了"));
+            }
+            other => panic!("应当明确报告源文件缺失，实际 {other:?}"),
+        }
+        assert_eq!(
+            std::fs::read(book_dir.join("text.json")).unwrap(),
+            text_before
+        );
+        assert_eq!(
+            std::fs::read(book_dir.join("index.bin")).unwrap(),
+            b"broken"
+        );
         std::fs::remove_dir_all(&dir).ok();
     }
 

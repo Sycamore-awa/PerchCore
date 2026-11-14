@@ -17,12 +17,14 @@ class ContractTests(unittest.TestCase):
 
     def test_complete_catalog_and_examples(self):
         check_offline()
-        self.assertEqual(len(method_names()), 31)
+        self.assertEqual(len(method_names()), 35)
 
     def test_reject_bad_requests(self):
         cases = [
             ("unknown.method", {}), ("version", {"extra": True}), ("version", []),
             ("compatibility", {"extra": True}),
+            ("context.open", {"extra": True}),
+            ("context.close", {}), ("context.close", {"context": -1}),
             ("txt.open", {}), ("txt.open", {"path": 2}),
             ("txt.slice", {"handle": 0, "chars": 0}),
             ("txt.slice", {"handle": 0, "chars": 20001}),
@@ -33,6 +35,17 @@ class ContractTests(unittest.TestCase):
             ("txt.analyze", {"bytes_hex": "f"}),
             ("txt.analyze", {"bytes_hex": "0x12"}),
             ("txt.analyze", {"bytes_hex": "中文"}),
+            ("txt.inspect", {}), ("txt.inspect", {"path": None}),
+            ("txt.inspect", {"path": "a", "bytes_hex": ""}),
+            ("txt.inspect", {"path": "a", "encoding": 1}),
+            ("book.open", {}), ("jobs.refine", {}),
+            ("book.locate", {}),
+            ("book.locate", {"handle": 0, "char_start": -1, "char_end": 1}),
+            ("book.locate", {"handle": 0, "char_start": 0, "char_end": "1"}),
+            ("book.locate", {"handle": 0, "char_start": False, "char_end": 1}),
+            ("book.locate", {"handle": 0, "char_start": 0, "char_end": 2**64}),
+            ("book.open", {"path": "a", "bytes_hex": ""}),
+            ("jobs.refine", {"path": None, "bytes_hex": "00"}),
             ("pdf.analyze", {}), ("pdf.analyze", {"path": "a", "bytes_hex": ""}),
             ("pdf.analyze", {"path": None}),
             ("pipeline.open", {"out_dir": "a", "policy": {"maxAttempts": 65536}}),
@@ -82,6 +95,20 @@ class ContractTests(unittest.TestCase):
         validator = self.validation[COMMON_ID].evolve(schema={"$ref": "https://example.invalid/schema"})
         with self.assertRaises(Unresolvable):
             validator.validate({})
+
+    def test_source_location_endpoint_units_and_formats_are_explicit(self):
+        txt = {"kind": "txt", "charOffset": 9, "byteOffset": 11}
+        epub = {"kind": "epub", "href": "/chapter.xhtml", "nodePath": "/2/4/1", "scalarOffset": 5, "utf16Offset": 6}
+        def accepted(start, end):
+            return self.validation[RESPONSE_ID].is_valid({"method": "book.locate", "result": {
+                "start": start, "end": end, "containsSynthetic": False}})
+        self.assertTrue(accepted(txt, txt))
+        self.assertTrue(accepted(epub, epub))
+        self.assertFalse(accepted(txt, epub))
+        self.assertFalse(accepted({**txt, "charOffset": -1}, txt))
+        self.assertFalse(accepted({**txt, "byteOffset": True}, txt))
+        self.assertFalse(accepted({key: value for key, value in epub.items() if key != "utf16Offset"}, epub))
+        self.assertFalse(accepted({**epub, "scalarOffset": "5"}, epub))
 
     def test_capture_nested_values_and_preserve_results(self):
         values = {"open": {"handle": 0, "hits": [{"text": "中文🦀"}]}}

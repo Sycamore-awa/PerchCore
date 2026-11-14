@@ -1,0 +1,1421 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:perchcore:api:v1.4:response",
+  "oneOf": [
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "version"
+        },
+        "result": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "core": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "core"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "$ref": "urn:perchcore:api:v1.4:common#/$defs/Error"
+            }
+          ]
+        }
+      },
+      "required": [
+        "method",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "compatibility"
+        },
+        "result": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "core": {
+                  "type": "string"
+                },
+                "abi": {
+                  "const": 1
+                },
+                "api": {
+                  "type": "object",
+                  "properties": {
+                    "major": {
+                      "const": 1
+                    },
+                    "minor": {
+                      "const": 4
+                    }
+                  },
+                  "required": [
+                    "major",
+                    "minor"
+                  ],
+                  "additionalProperties": false
+                },
+                "locator": {
+                  "type": "object",
+                  "properties": {
+                    "read": {
+                      "const": [
+                        1
+                      ]
+                    },
+                    "write": {
+                      "const": 1
+                    }
+                  },
+                  "required": [
+                    "read",
+                    "write"
+                  ],
+                  "additionalProperties": false
+                },
+                "artifacts": {
+                  "type": "object",
+                  "properties": {
+                    "index": {
+                      "type": "object",
+                      "properties": {
+                        "read": {
+                          "const": [
+                            1
+                          ]
+                        },
+                        "write": {
+                          "const": 1
+                        }
+                      },
+                      "required": [
+                        "read",
+                        "write"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "text": {
+                      "type": "object",
+                      "properties": {
+                        "read": {
+                          "const": [
+                            0,
+                            1
+                          ]
+                        },
+                        "write": {
+                          "const": 1
+                        }
+                      },
+                      "required": [
+                        "read",
+                        "write"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "index",
+                    "text"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "core",
+                "abi",
+                "api",
+                "locator",
+                "artifacts"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "$ref": "urn:perchcore:api:v1.4:common#/$defs/Error"
+            }
+          ]
+        }
+      },
+      "required": [
+        "method",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "context.open"
+        },
+        "result": {
+          "oneOf": [
+            {
+              "$ref": "urn:perchcore:api:v1.4:common#/$defs/ContextOpened"
+            },
+            {
+              "$ref": "urn:perchcore:api:v1.4:common#/$defs/Error"
+            }
+          ]
+        }
+      },
+      "required": [
+        "method",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "context.close"
+        },
+        "result": {
+          "oneOf": [
+            {
+              "$ref": "urn:perchcore:api:v1.4:common#/$defs/ContextClosed"
+            },
+            {
+              "$ref": "urn:perchcore:api:v1.4:common#/$defs/Error"
+            }
+          ]
+        }
+      },
+      "required": [
+        "method",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "locator.validate"
+        },
+        "result": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "valid": {
+                  "const": true
+                },
+                "format": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "epub",
+                        "txt",
+                        "pdf"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "valid",
+                "format"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "$ref": "urn:perchcore:api:v1.4:common#/$defs/Error"
+            }
+          ]
+        }
+      },
+      "required": [
+        "method",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "fingerprint"
+        },
+        "result": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "fingerprint": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              },
+              "required": [
+                "fingerprint"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "$ref": "urn:perchcore:api:v1.4:common#/$defs/Error"
+            }
+          ]
+        }
+      },
+      "required": [
+        "method",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "jobs.refine"
+        },
+        "result": {
+          "oneOf": [
+            {
+              "$ref": "urn:perchcore:api:v1.4:common#/$defs/Refinement"
+            },
+            {
+              "$ref": "urn:perchcore:api:v1.4:common#/$defs/Error"
+            }
+          ]
+        }
+      },
+      "required": [
+        "method",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "book.open"
+        },
+        "result": {
+          "oneOf": [
+            {
+              "$ref": "urn:perchcore:api:v1.4:common#/$defs/BookOpened"
+            },
+            {
+              "$ref": "urn:perchcore:api:v1.4:common#/$defs/Error"
+            }
+          ]
+        }
+      },
+      "required": [
+        "method",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "book.load"
+        },
+        "result": {
+          "oneOf": [
+            {
+              "$ref": "urn:perchcore:api:v1.4:common#/$defs/BookOpened"
+            },
+            {
+              "$ref": "urn:perchcore:api:v1.4:common#/$defs/Error"
+            }
+          ]
+        }
+      },
+      "required": [
+        "method",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "book.search"
+        },
+        "result": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "hits": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "urn:perchcore:api:v1.4:common#/$defs/BookHit"
+                  }
+                }
+              },
+              "required": [
+                "hits"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "$ref": "urn:perchcore:api:v1.4:common#/$defs/Error"
+            }
+          ]
+        }
+      },
+      "required": [
+        "method",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "book.locate"
+        },
+        "result": {
+          "oneOf": [
+            {
+              "$ref": "urn:perchcore:api:v1.4:common#/$defs/BookSourceLocation"
+            },
+            {
+              "$ref": "urn:perchcore:api:v1.4:common#/$defs/Error"
+            }
+          ]
+        }
+      },
+      "required": [
+        "method",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "book.close"
+        },
+        "result": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "closed": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "closed"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "$ref": "urn:perchcore:api:v1.4:common#/$defs/Error"
+            }
+          ]
+        }
+      },
+      "required": [
+        "method",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "txt.open"
+        },
+        "result": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "handle": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 18446744073709551615,
+                  "description": "当前进程的对象句柄，0 有效；属于创建它的 context，不能当作指针、布尔值或持久化 ID。"
+                },
+                "chars": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 18446744073709551615
+                },
+                "lines": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 18446744073709551615
+                },
+                "encoding": {
+                  "type": "string"
+                },
+                "certain": {
+                  "type": "boolean"
+                },
+                "hadErrors": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "handle",
+                "chars",
+                "lines",
+                "encoding",
+                "certain",
+                "hadErrors"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "$ref": "urn:perchcore:api:v1.4:common#/$defs/Error"
+            }
+          ]
+        }
+      },
+      "required": [
+        "method",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "txt.slice"
+        },
+        "result": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "text": {
+                  "type": "string"
+                },
+                "start": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 18446744073709551615
+                },
+                "end": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 18446744073709551615
+                },
+                "chars": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 18446744073709551615
+                },
+                "total": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 18446744073709551615
+                }
+              },
+              "required": [
+                "text",
+                "start",
+                "end",
+                "chars",
+                "total"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "$ref": "urn:perchcore:api:v1.4:common#/$defs/Error"
+            }
+          ]
+        }
+      },
+      "required": [
+        "method",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "txt.locate"
+        },
+        "result": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "locator": {
+                  "$ref": "urn:perchcore:api:v1.4:common#/$defs/Locator"
+                }
+              },
+              "required": [
+                "locator"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "$ref": "urn:perchcore:api:v1.4:common#/$defs/Error"
+            }
+          ]
+        }
+      },
+      "required": [
+        "method",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "txt.offset"
+        },
+        "result": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "char": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 18446744073709551615
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "resolved": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "char",
+                "resolved"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "$ref": "urn:perchcore:api:v1.4:common#/$defs/Error"
+            }
+          ]
+        }
+      },
+      "required": [
+        "method",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "txt.line"
+        },
+        "result": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "line": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 18446744073709551615
+                },
+                "start": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 18446744073709551615
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "end": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 18446744073709551615
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "totalLines": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 18446744073709551615
+                }
+              },
+              "required": [
+                "line",
+                "start",
+                "end",
+                "totalLines"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "$ref": "urn:perchcore:api:v1.4:common#/$defs/Error"
+            }
+          ]
+        }
+      },
+      "required": [
+        "method",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "txt.close"
+        },
+        "result": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "closed": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "closed"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "$ref": "urn:perchcore:api:v1.4:common#/$defs/Error"
+            }
+          ]
+        }
+      },
+      "required": [
+        "method",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "txt.analyze"
+        },
+        "result": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "encoding": {
+                  "type": "string"
+                },
+                "certain_encoding": {
+                  "type": "boolean"
+                },
+                "chars": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 18446744073709551615
+                },
+                "lines": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 18446744073709551615
+                },
+                "had_decode_errors": {
+                  "type": "boolean"
+                },
+                "text": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "encoding",
+                "certain_encoding",
+                "chars",
+                "lines",
+                "had_decode_errors",
+                "text"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "$ref": "urn:perchcore:api:v1.4:common#/$defs/Error"
+            }
+          ]
+        }
+      },
+      "required": [
+        "method",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "txt.inspect"
+        },
+        "result": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "encoding": {
+                  "type": "string"
+                },
+                "certain_encoding": {
+                  "type": "boolean"
+                },
+                "chars": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 18446744073709551615
+                },
+                "lines": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 18446744073709551615
+                },
+                "had_decode_errors": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "encoding",
+                "certain_encoding",
+                "chars",
+                "lines",
+                "had_decode_errors"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "$ref": "urn:perchcore:api:v1.4:common#/$defs/Error"
+            }
+          ]
+        }
+      },
+      "required": [
+        "method",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "pipeline.open"
+        },
+        "result": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "handle": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 18446744073709551615,
+                  "description": "当前进程的对象句柄，0 有效；属于创建它的 context，不能当作指针、布尔值或持久化 ID。"
+                },
+                "recovered": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "urn:perchcore:api:v1.4:common#/$defs/Recovered"
+                  }
+                }
+              },
+              "required": [
+                "handle",
+                "recovered"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "$ref": "urn:perchcore:api:v1.4:common#/$defs/Error"
+            }
+          ]
+        }
+      },
+      "required": [
+        "method",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "pipeline.enqueue"
+        },
+        "result": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "outcome": {
+                  "type": "string",
+                  "enum": [
+                    "queued",
+                    "alreadyPresent",
+                    "notNeeded"
+                  ]
+                },
+                "stage": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "refine",
+                        "index"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "state": {
+                  "type": "string",
+                  "enum": [
+                    "registered",
+                    "refining",
+                    "indexing",
+                    "ready",
+                    "failed"
+                  ]
+                },
+                "attempts": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 65535
+                }
+              },
+              "required": [
+                "outcome",
+                "stage",
+                "state",
+                "attempts"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "$ref": "urn:perchcore:api:v1.4:common#/$defs/Error"
+            }
+          ]
+        }
+      },
+      "required": [
+        "method",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "pipeline.step"
+        },
+        "result": {
+          "oneOf": [
+            {
+              "$ref": "urn:perchcore:api:v1.4:common#/$defs/PipelineStep"
+            },
+            {
+              "$ref": "urn:perchcore:api:v1.4:common#/$defs/Error"
+            }
+          ]
+        }
+      },
+      "required": [
+        "method",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "pipeline.status"
+        },
+        "result": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "idle": {
+                  "type": "boolean"
+                },
+                "stats": {
+                  "$ref": "urn:perchcore:api:v1.4:common#/$defs/PipelineStats"
+                }
+              },
+              "required": [
+                "idle",
+                "stats"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "$ref": "urn:perchcore:api:v1.4:common#/$defs/Error"
+            }
+          ]
+        }
+      },
+      "required": [
+        "method",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "pipeline.state"
+        },
+        "result": {
+          "oneOf": [
+            {
+              "$ref": "urn:perchcore:api:v1.4:common#/$defs/PipelineState"
+            },
+            {
+              "$ref": "urn:perchcore:api:v1.4:common#/$defs/Error"
+            }
+          ]
+        }
+      },
+      "required": [
+        "method",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "pipeline.promote"
+        },
+        "result": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "promoted": {
+                  "const": true
+                },
+                "priority": {
+                  "type": "string",
+                  "enum": [
+                    "urgent",
+                    "normal",
+                    "background"
+                  ]
+                }
+              },
+              "required": [
+                "promoted",
+                "priority"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "$ref": "urn:perchcore:api:v1.4:common#/$defs/Error"
+            }
+          ]
+        }
+      },
+      "required": [
+        "method",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "pipeline.retry"
+        },
+        "result": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "retried": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "retried"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "$ref": "urn:perchcore:api:v1.4:common#/$defs/Error"
+            }
+          ]
+        }
+      },
+      "required": [
+        "method",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "pipeline.cancel"
+        },
+        "result": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "cancelled": {
+                  "const": true
+                }
+              },
+              "required": [
+                "cancelled"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "$ref": "urn:perchcore:api:v1.4:common#/$defs/Error"
+            }
+          ]
+        }
+      },
+      "required": [
+        "method",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "pipeline.close"
+        },
+        "result": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "closed": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "closed"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "$ref": "urn:perchcore:api:v1.4:common#/$defs/Error"
+            }
+          ]
+        }
+      },
+      "required": [
+        "method",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "pdf.analyze"
+        },
+        "result": {
+          "oneOf": [
+            {
+              "$ref": "urn:perchcore:api:v1.4:common#/$defs/PdfInfo"
+            },
+            {
+              "$ref": "urn:perchcore:api:v1.4:common#/$defs/Error"
+            }
+          ]
+        }
+      },
+      "required": [
+        "method",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "index.search"
+        },
+        "result": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "hits": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "urn:perchcore:api:v1.4:common#/$defs/IndexHit"
+                  }
+                }
+              },
+              "required": [
+                "hits"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "$ref": "urn:perchcore:api:v1.4:common#/$defs/Error"
+            }
+          ]
+        }
+      },
+      "required": [
+        "method",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "curl"
+        },
+        "result": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "geometry": {
+                  "anyOf": [
+                    {
+                      "$ref": "urn:perchcore:api:v1.4:common#/$defs/Geometry"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "geometry"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "$ref": "urn:perchcore:api:v1.4:common#/$defs/Error"
+            }
+          ]
+        }
+      },
+      "required": [
+        "method",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "hlc.parse"
+        },
+        "result": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "wall_ms": {
+                  "type": "integer",
+                  "minimum": -9223372036854775808,
+                  "maximum": 9223372036854775807
+                },
+                "counter": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 4294967295
+                },
+                "device": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "wall_ms",
+                "counter",
+                "device"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "$ref": "urn:perchcore:api:v1.4:common#/$defs/Error"
+            }
+          ]
+        }
+      },
+      "required": [
+        "method",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "sync.merge"
+        },
+        "result": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "state": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "urn:perchcore:api:v1.4:common#/$defs/Change"
+                  }
+                },
+                "stats": {
+                  "$ref": "urn:perchcore:api:v1.4:common#/$defs/MergeStats"
+                },
+                "conflictRate": {
+                  "type": "number"
+                },
+                "effects": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "initialized",
+                      "updated",
+                      "staleIgnored",
+                      "conflictResolved",
+                      "unchanged"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "state",
+                "stats",
+                "conflictRate",
+                "effects"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "$ref": "urn:perchcore:api:v1.4:common#/$defs/Error"
+            }
+          ]
+        }
+      },
+      "required": [
+        "method",
+        "result"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "method": {
+          "const": "sync.delta"
+        },
+        "result": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "changes": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "urn:perchcore:api:v1.4:common#/$defs/Change"
+                  }
+                },
+                "nextCursor": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "description": "HLC 字符串，推荐非负十进制 wall-counter-device；解析和排序由 Rust 执行。"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "hasMore": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "changes",
+                "nextCursor",
+                "hasMore"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "$ref": "urn:perchcore:api:v1.4:common#/$defs/Error"
+            }
+          ]
+        }
+      },
+      "required": [
+        "method",
+        "result"
+      ],
+      "additionalProperties": false
+    }
+  ]
+}

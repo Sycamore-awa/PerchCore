@@ -28,12 +28,13 @@ fn main() -> Result<(), Box<dyn Error>> {
     println!("{}", serde_json::to_string_pretty(&metadata)?);
 
     if let Some(query) = query {
-        let text = jobs::extract_text(&bytes, format, options)?;
-        let index = jobs::index_book(&text, 4096);
+        let text = jobs::extract_text_with_source_map(&bytes, format, options)?;
+        let index = jobs::index_book(text.book_text(), 4096);
         for hit in index.search(&query) {
             println!("{}..{}: {}", hit.char_start, hit.char_end, hit.snippet);
+            println!("source: {:?}", text.locate(hit.char_start, hit.char_end)?);
         }
-        if text.truncated {
+        if text.book_text().truncated {
             eprintln!("Search covers only the extracted prefix (max_chars limit).");
         }
     }

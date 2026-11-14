@@ -1,0 +1,2304 @@
+{
+  "description": "Replay in one fresh process per client; $var resolves paths/bytes, $ref resolves earlier results. canonical=false intentionally probes runtime permissiveness or malformed input.",
+  "source_text": "中文🦀café\r\n第二行\r末尾\n",
+  "calls": [
+    {
+      "id": "version",
+      "method": "version",
+      "args": {},
+      "canonical": true,
+      "expect": {
+        "core": "0.1.0"
+      }
+    },
+    {
+      "id": "compatibility",
+      "method": "compatibility",
+      "args": {},
+      "canonical": true,
+      "expect": {
+        "abi": 1,
+        "api": {
+          "major": 1,
+          "minor": 2
+        },
+        "locator": {
+          "read": [
+            1
+          ],
+          "write": 1
+        },
+        "artifacts": {
+          "index": {
+            "read": [
+              1
+            ],
+            "write": 1
+          },
+          "text": {
+            "read": [
+              0,
+              1
+            ],
+            "write": 1
+          }
+        }
+      }
+    },
+    {
+      "id": "unknown_method",
+      "method": "unknown.method",
+      "args": {},
+      "canonical": false,
+      "error": "FFI_UNKNOWN_METHOD"
+    },
+    {
+      "id": "version_loose",
+      "method": "version",
+      "args": {
+        "unexpected": true
+      },
+      "canonical": false,
+      "expect": {
+        "core": "0.1.0"
+      }
+    },
+    {
+      "id": "locator_txt",
+      "method": "locator.validate",
+      "args": {
+        "href": "中文.txt",
+        "locations": {
+          "progression": 0.5
+        },
+        "perch": {
+          "v": 1,
+          "format": "txt",
+          "txtOffset": 2,
+          "txtByteOffset": 6
+        }
+      },
+      "canonical": true,
+      "expect": {
+        "valid": true,
+        "format": "txt"
+      }
+    },
+    {
+      "id": "locator_plain",
+      "method": "locator.validate",
+      "args": {
+        "href": "chapter.xhtml"
+      },
+      "canonical": true,
+      "expect": {
+        "format": null
+      }
+    },
+    {
+      "id": "locator_epub",
+      "method": "locator.validate",
+      "args": {
+        "href": "c.xhtml",
+        "locations": {
+          "partialCfi": "epubcfi(/6/2)"
+        },
+        "perch": {
+          "v": 1,
+          "format": "epub"
+        }
+      },
+      "canonical": true,
+      "expect": {
+        "format": "epub"
+      }
+    },
+    {
+      "id": "locator_future",
+      "method": "locator.validate",
+      "args": {
+        "href": "page",
+        "perch": {
+          "v": 2,
+          "format": "pdf",
+          "pdfPage": 0
+        }
+      },
+      "canonical": false,
+      "error": "MODEL_UNSUPPORTED_VERSION"
+    },
+    {
+      "id": "locator_pdf",
+      "method": "locator.validate",
+      "args": {
+        "href": "page",
+        "perch": {
+          "v": 1,
+          "format": "pdf",
+          "pdfPage": 0,
+          "pdfRect": [
+            0.9,
+            0.9,
+            0.2,
+            0.2
+          ]
+        }
+      },
+      "canonical": true,
+      "expect": {
+        "format": "pdf"
+      }
+    },
+    {
+      "id": "locator_empty",
+      "method": "locator.validate",
+      "args": {
+        "href": " "
+      },
+      "canonical": true,
+      "error": "MODEL_EMPTY_FIELD"
+    },
+    {
+      "id": "locator_progression",
+      "method": "locator.validate",
+      "args": {
+        "href": "a",
+        "locations": {
+          "progression": 1.2
+        }
+      },
+      "canonical": true,
+      "error": "MODEL_INVALID_PROGRESSION"
+    },
+    {
+      "id": "locator_anchor",
+      "method": "locator.validate",
+      "args": {
+        "href": "a",
+        "perch": {
+          "v": 1,
+          "format": "txt"
+        }
+      },
+      "canonical": true,
+      "error": "MODEL_MISSING_ANCHOR"
+    },
+    {
+      "id": "locator_rect",
+      "method": "locator.validate",
+      "args": {
+        "href": "a",
+        "perch": {
+          "v": 1,
+          "pdfRect": [
+            0,
+            0,
+            0,
+            1
+          ]
+        }
+      },
+      "canonical": true,
+      "error": "MODEL_INVALID_RECT"
+    },
+    {
+      "id": "fingerprint",
+      "method": "fingerprint",
+      "args": {
+        "size": 12,
+        "head_hex": "e4B8ad",
+        "tail_hex": "f09Fa680"
+      },
+      "canonical": true
+    },
+    {
+      "id": "hex_odd",
+      "method": "fingerprint",
+      "args": {
+        "size": 0,
+        "head_hex": "0",
+        "tail_hex": ""
+      },
+      "canonical": false,
+      "error": "FFI_BAD_ARGS"
+    },
+    {
+      "id": "hex_non_ascii",
+      "method": "txt.analyze",
+      "args": {
+        "bytes_hex": "中文"
+      },
+      "canonical": false,
+      "error": "FFI_BAD_ARGS"
+    },
+    {
+      "id": "txt_analyze",
+      "method": "txt.analyze",
+      "args": {
+        "bytes_hex": "e4b8ade69687f09fa68063616665cc810d0ae7acace4ba8ce8a18c0de69cabe5b0be0a"
+      },
+      "canonical": true,
+      "expect": {
+        "text": "中文🦀café\r\n第二行\r末尾\n",
+        "chars": 17
+      }
+    },
+    {
+      "id": "refine",
+      "method": "jobs.refine",
+      "args": {
+        "bytes_hex": "e4b8ade69687f09fa68063616665cc810d0ae7acace4ba8ce8a18c0de69cabe5b0be0a",
+        "format": "txt"
+      },
+      "canonical": true
+    },
+    {
+      "id": "refine_epub",
+      "method": "jobs.refine",
+      "args": {
+        "bytes_hex": {
+          "$var": "epub_hex"
+        },
+        "format": "epub"
+      },
+      "canonical": true
+    },
+    {
+      "id": "refine_pdf",
+      "method": "jobs.refine",
+      "args": {
+        "bytes_hex": "",
+        "format": "pdf"
+      },
+      "canonical": true,
+      "error": "JOBS_UNSUPPORTED_FORMAT"
+    },
+    {
+      "id": "book_open",
+      "method": "book.open",
+      "args": {
+        "bytes_hex": "e4b8ade69687f09fa68063616665cc810d0ae7acace4ba8ce8a18c0de69cabe5b0be0a",
+        "format": "txt",
+        "chunk_chars": 0
+      },
+      "canonical": true,
+      "expect": {
+        "handle": 0,
+        "truncated": false
+      }
+    },
+    {
+      "id": "book_search",
+      "method": "book.search",
+      "args": {
+        "handle": {
+          "$ref": "book_open.handle"
+        },
+        "query": "中文"
+      },
+      "canonical": true
+    },
+    {
+      "id": "book_search_zero",
+      "method": "book.search",
+      "args": {
+        "handle": {
+          "$ref": "book_open.handle"
+        },
+        "query": "中文",
+        "limit": 0
+      },
+      "canonical": true,
+      "expect": {
+        "hits": []
+      }
+    },
+    {
+      "id": "book_epub_open",
+      "method": "book.open",
+      "args": {
+        "bytes_hex": {
+          "$var": "epub_hex"
+        },
+        "format": "epub"
+      },
+      "canonical": true
+    },
+    {
+      "id": "book_epub_search",
+      "method": "book.search",
+      "args": {
+        "handle": {
+          "$ref": "book_epub_open.handle"
+        },
+        "query": "海风"
+      },
+      "canonical": true
+    },
+    {
+      "id": "book_epub_close",
+      "method": "book.close",
+      "args": {
+        "handle": {
+          "$ref": "book_epub_open.handle"
+        }
+      },
+      "canonical": true,
+      "expect": {
+        "closed": true
+      }
+    },
+    {
+      "id": "txt_open",
+      "method": "txt.open",
+      "args": {
+        "path": {
+          "$var": "source"
+        }
+      },
+      "canonical": true,
+      "expect": {
+        "chars": 17,
+        "lines": 3,
+        "hadErrors": false
+      }
+    },
+    {
+      "id": "wrong_close",
+      "method": "book.close",
+      "args": {
+        "handle": {
+          "$ref": "txt_open.handle"
+        }
+      },
+      "canonical": true,
+      "error": "HANDLE_WRONG_KIND"
+    },
+    {
+      "id": "wrong_use",
+      "method": "book.search",
+      "args": {
+        "handle": {
+          "$ref": "txt_open.handle"
+        },
+        "query": "中文"
+      },
+      "canonical": true,
+      "error": "HANDLE_WRONG_KIND"
+    },
+    {
+      "id": "txt_slice",
+      "method": "txt.slice",
+      "args": {
+        "handle": {
+          "$ref": "txt_open.handle"
+        },
+        "start": 1,
+        "chars": 3
+      },
+      "canonical": true,
+      "expect": {
+        "text": "文🦀c",
+        "start": 1,
+        "end": 4,
+        "chars": 3,
+        "total": 17
+      }
+    },
+    {
+      "id": "txt_slice_eof",
+      "method": "txt.slice",
+      "args": {
+        "handle": {
+          "$ref": "txt_open.handle"
+        },
+        "start": 17,
+        "chars": 20000
+      },
+      "canonical": true,
+      "expect": {
+        "text": "",
+        "chars": 0
+      }
+    },
+    {
+      "id": "txt_slice_tail",
+      "method": "txt.slice",
+      "args": {
+        "handle": {
+          "$ref": "txt_open.handle"
+        },
+        "start": 15,
+        "chars": 20000
+      },
+      "canonical": true,
+      "expect": {
+        "text": "尾\n",
+        "chars": 2
+      }
+    },
+    {
+      "id": "txt_slice_zero",
+      "method": "txt.slice",
+      "args": {
+        "handle": {
+          "$ref": "txt_open.handle"
+        },
+        "chars": 0
+      },
+      "canonical": false,
+      "error": "TXT_SLICE_BAD_SIZE"
+    },
+    {
+      "id": "txt_slice_large",
+      "method": "txt.slice",
+      "args": {
+        "handle": {
+          "$ref": "txt_open.handle"
+        },
+        "chars": 20001
+      },
+      "canonical": false,
+      "error": "TXT_SLICE_BAD_SIZE"
+    },
+    {
+      "id": "txt_slice_range",
+      "method": "txt.slice",
+      "args": {
+        "handle": {
+          "$ref": "txt_open.handle"
+        },
+        "start": 18,
+        "chars": 1
+      },
+      "canonical": true,
+      "error": "TXT_OUT_OF_RANGE"
+    },
+    {
+      "id": "txt_locate",
+      "method": "txt.locate",
+      "args": {
+        "handle": {
+          "$ref": "txt_open.handle"
+        },
+        "char": 2
+      },
+      "canonical": true,
+      "expect": {
+        "locator": {
+          "perch": {
+            "txtOffset": 2,
+            "txtByteOffset": 6
+          }
+        }
+      }
+    },
+    {
+      "id": "txt_locate_eof",
+      "method": "txt.locate",
+      "args": {
+        "handle": {
+          "$ref": "txt_open.handle"
+        },
+        "char": 17
+      },
+      "canonical": true,
+      "expect": {
+        "locator": {
+          "perch": {
+            "txtOffset": 17
+          }
+        }
+      }
+    },
+    {
+      "id": "txt_offset",
+      "method": "txt.offset",
+      "args": {
+        "handle": {
+          "$ref": "txt_open.handle"
+        },
+        "locator": {
+          "$ref": "txt_locate.locator"
+        }
+      },
+      "canonical": true,
+      "expect": {
+        "char": 2,
+        "resolved": true
+      }
+    },
+    {
+      "id": "txt_offset_byte",
+      "method": "txt.offset",
+      "args": {
+        "handle": {
+          "$ref": "txt_open.handle"
+        },
+        "locator": {
+          "href": "a",
+          "perch": {
+            "v": 1,
+            "txtByteOffset": 6
+          }
+        }
+      },
+      "canonical": true,
+      "expect": {
+        "char": 2
+      }
+    },
+    {
+      "id": "txt_offset_byte_invalid",
+      "method": "txt.offset",
+      "args": {
+        "handle": {
+          "$ref": "txt_open.handle"
+        },
+        "locator": {
+          "href": "a",
+          "locations": {
+            "progression": 0.5
+          },
+          "perch": {
+            "v": 1,
+            "txtByteOffset": 7
+          }
+        }
+      },
+      "canonical": true,
+      "expect": {
+        "char": null,
+        "resolved": false
+      }
+    },
+    {
+      "id": "txt_offset_no_fallback",
+      "method": "txt.offset",
+      "args": {
+        "handle": {
+          "$ref": "txt_open.handle"
+        },
+        "locator": {
+          "href": "a",
+          "locations": {
+            "progression": 0.5
+          },
+          "perch": {
+            "v": 1,
+            "txtOffset": 99
+          }
+        }
+      },
+      "canonical": true,
+      "expect": {
+        "char": null,
+        "resolved": false
+      }
+    },
+    {
+      "id": "txt_offset_progression",
+      "method": "txt.offset",
+      "args": {
+        "handle": {
+          "$ref": "txt_open.handle"
+        },
+        "locator": {
+          "href": "a",
+          "locations": {
+            "progression": 0.5
+          }
+        }
+      },
+      "canonical": true,
+      "expect": {
+        "char": 9
+      }
+    },
+    {
+      "id": "txt_offset_unchecked",
+      "method": "txt.offset",
+      "args": {
+        "handle": {
+          "$ref": "txt_open.handle"
+        },
+        "locator": {
+          "href": "",
+          "locations": {
+            "progression": 1.2
+          }
+        }
+      },
+      "canonical": true,
+      "expect": {
+        "char": 20
+      }
+    },
+    {
+      "id": "txt_line",
+      "method": "txt.line",
+      "args": {
+        "handle": {
+          "$ref": "txt_open.handle"
+        },
+        "char": 9
+      },
+      "canonical": true,
+      "expect": {
+        "line": 0,
+        "start": 0,
+        "end": 10,
+        "totalLines": 3
+      }
+    },
+    {
+      "id": "txt_line_cr",
+      "method": "txt.line",
+      "args": {
+        "handle": {
+          "$ref": "txt_open.handle"
+        },
+        "char": 14
+      },
+      "canonical": true,
+      "expect": {
+        "line": 1,
+        "start": 10,
+        "end": 17
+      }
+    },
+    {
+      "id": "txt_line_eof",
+      "method": "txt.line",
+      "args": {
+        "handle": {
+          "$ref": "txt_open.handle"
+        },
+        "char": 17
+      },
+      "canonical": true,
+      "expect": {
+        "line": 2,
+        "start": 17,
+        "end": 17
+      }
+    },
+    {
+      "id": "txt_encoding",
+      "method": "txt.open",
+      "args": {
+        "path": {
+          "$var": "gbk"
+        },
+        "encoding": "GBK"
+      },
+      "canonical": true,
+      "expect": {
+        "encoding": "GBK",
+        "hadErrors": false
+      }
+    },
+    {
+      "id": "txt_encoding_slice",
+      "method": "txt.slice",
+      "args": {
+        "handle": {
+          "$ref": "txt_encoding.handle"
+        },
+        "chars": 3
+      },
+      "canonical": true,
+      "expect": {
+        "text": "中文编"
+      }
+    },
+    {
+      "id": "txt_encoding_close",
+      "method": "txt.close",
+      "args": {
+        "handle": {
+          "$ref": "txt_encoding.handle"
+        }
+      },
+      "canonical": true,
+      "expect": {
+        "closed": true
+      }
+    },
+    {
+      "id": "txt_bad_encoding",
+      "method": "txt.open",
+      "args": {
+        "path": {
+          "$var": "source"
+        },
+        "encoding": "unknown-label"
+      },
+      "canonical": true,
+      "error": "TXT_UNKNOWN_ENCODING"
+    },
+    {
+      "id": "txt_missing",
+      "method": "txt.open",
+      "args": {
+        "path": {
+          "$var": "missing"
+        }
+      },
+      "canonical": true,
+      "error": "TXT_IO"
+    },
+    {
+      "id": "pipeline_bad_policy",
+      "method": "pipeline.open",
+      "args": {
+        "out_dir": {
+          "$var": "bad_policy_dir"
+        },
+        "policy": {
+          "maxRefine": 0,
+          "maxIndex": 0
+        }
+      },
+      "canonical": true,
+      "error": "PIPELINE_POLICY"
+    },
+    {
+      "id": "pipeline_refine_only",
+      "method": "pipeline.open",
+      "args": {
+        "out_dir": {
+          "$var": "bad_policy_dir"
+        },
+        "policy": {
+          "maxIndex": 0
+        }
+      },
+      "canonical": true,
+      "expect": {
+        "recovered": []
+      }
+    },
+    {
+      "id": "pipeline_refine_only_close",
+      "method": "pipeline.close",
+      "args": {
+        "handle": {
+          "$ref": "pipeline_refine_only.handle"
+        }
+      },
+      "canonical": true,
+      "expect": {
+        "closed": true
+      }
+    },
+    {
+      "id": "pipeline_bad_attempts",
+      "method": "pipeline.open",
+      "args": {
+        "out_dir": {
+          "$var": "bad_policy_dir"
+        },
+        "policy": {
+          "maxAttempts": 65536
+        }
+      },
+      "canonical": false,
+      "error": "FFI_BAD_ARGS"
+    },
+    {
+      "id": "pipeline_bad_io",
+      "method": "pipeline.open",
+      "args": {
+        "out_dir": {
+          "$var": "blocked"
+        }
+      },
+      "canonical": true,
+      "error": "PIPELINE_IO"
+    },
+    {
+      "id": "pipeline_open",
+      "method": "pipeline.open",
+      "args": {
+        "out_dir": {
+          "$var": "out"
+        },
+        "policy": {
+          "maxAttempts": 2,
+          "backoffBaseMs": 10,
+          "backoffMaxMs": 10
+        }
+      },
+      "canonical": true,
+      "expect": {
+        "recovered": []
+      }
+    },
+    {
+      "id": "pipeline_quota",
+      "method": "pipeline.open",
+      "args": {
+        "out_dir": {
+          "$var": "out2"
+        }
+      },
+      "canonical": true,
+      "error": "PIPELINE_TOO_MANY_OPEN"
+    },
+    {
+      "id": "pipeline_state_unknown",
+      "method": "pipeline.state",
+      "args": {
+        "handle": {
+          "$ref": "pipeline_open.handle"
+        },
+        "book": "00000000-0000-4000-8000-000000000001"
+      },
+      "canonical": true,
+      "expect": {
+        "known": false
+      }
+    },
+    {
+      "id": "pipeline_enqueue",
+      "method": "pipeline.enqueue",
+      "args": {
+        "handle": {
+          "$ref": "pipeline_open.handle"
+        },
+        "book": "00000000-0000-4000-8000-000000000001",
+        "path": {
+          "$var": "source"
+        },
+        "format": "txt"
+      },
+      "canonical": true,
+      "expect": {
+        "outcome": "queued",
+        "stage": "refine"
+      }
+    },
+    {
+      "id": "pipeline_enqueue_duplicate",
+      "method": "pipeline.enqueue",
+      "args": {
+        "handle": {
+          "$ref": "pipeline_open.handle"
+        },
+        "book": "00000000-0000-4000-8000-000000000001",
+        "path": {
+          "$var": "source"
+        },
+        "format": "txt"
+      },
+      "canonical": true,
+      "expect": {
+        "outcome": "alreadyPresent",
+        "stage": null
+      }
+    },
+    {
+      "id": "pipeline_status",
+      "method": "pipeline.status",
+      "args": {
+        "handle": {
+          "$ref": "pipeline_open.handle"
+        }
+      },
+      "canonical": true,
+      "expect": {
+        "idle": false,
+        "stats": {
+          "pendingRefine": 1
+        }
+      }
+    },
+    {
+      "id": "pipeline_gate",
+      "method": "pipeline.step",
+      "args": {
+        "handle": {
+          "$ref": "pipeline_open.handle"
+        },
+        "now_ms": 1700000000000,
+        "gate": {
+          "allowAny": false
+        }
+      },
+      "canonical": true,
+      "expect": {
+        "outcome": "idle"
+      }
+    },
+    {
+      "id": "pipeline_promote",
+      "method": "pipeline.promote",
+      "args": {
+        "handle": {
+          "$ref": "pipeline_open.handle"
+        },
+        "book": "00000000-0000-4000-8000-000000000001",
+        "priority": "urgent"
+      },
+      "canonical": true,
+      "expect": {
+        "promoted": true,
+        "priority": "urgent"
+      }
+    },
+    {
+      "id": "pipeline_refined",
+      "method": "pipeline.step",
+      "args": {
+        "handle": {
+          "$ref": "pipeline_open.handle"
+        },
+        "now_ms": 1700000000000
+      },
+      "canonical": true,
+      "expect": {
+        "outcome": "refined",
+        "stage": "refine"
+      }
+    },
+    {
+      "id": "pipeline_heavy_gate",
+      "method": "pipeline.step",
+      "args": {
+        "handle": {
+          "$ref": "pipeline_open.handle"
+        },
+        "now_ms": 1700000000000,
+        "gate": {
+          "allowHeavy": false
+        }
+      },
+      "canonical": true,
+      "expect": {
+        "outcome": "idle"
+      }
+    },
+    {
+      "id": "pipeline_indexed",
+      "method": "pipeline.step",
+      "args": {
+        "handle": {
+          "$ref": "pipeline_open.handle"
+        },
+        "now_ms": 1700000000000
+      },
+      "canonical": true,
+      "expect": {
+        "outcome": "indexed",
+        "stage": "index"
+      }
+    },
+    {
+      "id": "pipeline_state",
+      "method": "pipeline.state",
+      "args": {
+        "handle": {
+          "$ref": "pipeline_open.handle"
+        },
+        "book": "00000000-0000-4000-8000-000000000001"
+      },
+      "canonical": true,
+      "expect": {
+        "known": true,
+        "state": "ready",
+        "attempts": 0,
+        "failedStage": null
+      }
+    },
+    {
+      "id": "pipeline_ready_enqueue",
+      "method": "pipeline.enqueue",
+      "args": {
+        "handle": {
+          "$ref": "pipeline_open.handle"
+        },
+        "book": "00000000-0000-4000-8000-000000000001",
+        "path": {
+          "$var": "source"
+        },
+        "format": "txt",
+        "state": "illegal"
+      },
+      "canonical": false,
+      "expect": {
+        "outcome": "notNeeded",
+        "state": "ready"
+      }
+    },
+    {
+      "id": "book_load",
+      "method": "book.load",
+      "args": {
+        "index_path": {
+          "$var": "index"
+        },
+        "text_path": {
+          "$var": "text_json"
+        }
+      },
+      "canonical": true
+    },
+    {
+      "id": "book_load_search",
+      "method": "book.search",
+      "args": {
+        "handle": {
+          "$ref": "book_load.handle"
+        },
+        "query": "中文"
+      },
+      "canonical": true
+    },
+    {
+      "id": "book_load_close",
+      "method": "book.close",
+      "args": {
+        "handle": {
+          "$ref": "book_load.handle"
+        }
+      },
+      "canonical": true,
+      "expect": {
+        "closed": true
+      }
+    },
+    {
+      "action": "future_text"
+    },
+    {
+      "id": "book_load_future_text",
+      "method": "book.load",
+      "args": {
+        "index_path": {
+          "$var": "index"
+        },
+        "text_path": {
+          "$var": "future_json"
+        }
+      },
+      "canonical": true,
+      "error": "BOOK_TEXT_UNSUPPORTED_VERSION"
+    },
+    {
+      "action": "mismatch_text"
+    },
+    {
+      "id": "book_load_mismatch",
+      "method": "book.load",
+      "args": {
+        "index_path": {
+          "$var": "index"
+        },
+        "text_path": {
+          "$var": "mismatch_json"
+        }
+      },
+      "canonical": true,
+      "error": "BOOK_INDEX_MISMATCH"
+    },
+    {
+      "id": "pipeline_failed_enqueue",
+      "method": "pipeline.enqueue",
+      "args": {
+        "handle": {
+          "$ref": "pipeline_open.handle"
+        },
+        "book": "00000000-0000-4000-8000-000000000002",
+        "path": {
+          "$var": "pdf"
+        },
+        "format": "pdf"
+      },
+      "canonical": true,
+      "expect": {
+        "outcome": "queued"
+      }
+    },
+    {
+      "id": "pipeline_failed",
+      "method": "pipeline.step",
+      "args": {
+        "handle": {
+          "$ref": "pipeline_open.handle"
+        },
+        "now_ms": 1700000000000
+      },
+      "canonical": true,
+      "expect": {
+        "outcome": "failed",
+        "attempts": 1,
+        "retryAtMs": 1700000000010
+      }
+    },
+    {
+      "id": "pipeline_early_retry",
+      "method": "pipeline.step",
+      "args": {
+        "handle": {
+          "$ref": "pipeline_open.handle"
+        },
+        "now_ms": 1700000000009
+      },
+      "canonical": true,
+      "expect": {
+        "outcome": "idle"
+      }
+    },
+    {
+      "id": "pipeline_exhausted",
+      "method": "pipeline.step",
+      "args": {
+        "handle": {
+          "$ref": "pipeline_open.handle"
+        },
+        "now_ms": 1700000000010
+      },
+      "canonical": true,
+      "expect": {
+        "outcome": "exhausted",
+        "attempts": 2
+      }
+    },
+    {
+      "id": "pipeline_failed_state",
+      "method": "pipeline.state",
+      "args": {
+        "handle": {
+          "$ref": "pipeline_open.handle"
+        },
+        "book": "00000000-0000-4000-8000-000000000002"
+      },
+      "canonical": true,
+      "expect": {
+        "state": "failed",
+        "attempts": 2,
+        "failedStage": "refine",
+        "retryAtMs": null
+      }
+    },
+    {
+      "id": "pipeline_retry",
+      "method": "pipeline.retry",
+      "args": {
+        "handle": {
+          "$ref": "pipeline_open.handle"
+        },
+        "book": "00000000-0000-4000-8000-000000000002"
+      },
+      "canonical": true,
+      "expect": {
+        "retried": true
+      }
+    },
+    {
+      "id": "pipeline_cancel",
+      "method": "pipeline.cancel",
+      "args": {
+        "handle": {
+          "$ref": "pipeline_open.handle"
+        },
+        "book": "00000000-0000-4000-8000-000000000002"
+      },
+      "canonical": true,
+      "expect": {
+        "cancelled": true
+      }
+    },
+    {
+      "id": "pipeline_retry_unknown",
+      "method": "pipeline.retry",
+      "args": {
+        "handle": {
+          "$ref": "pipeline_open.handle"
+        },
+        "book": "00000000-0000-4000-8000-000000000003"
+      },
+      "canonical": true,
+      "expect": {
+        "retried": false
+      }
+    },
+    {
+      "action": "block_book_dir",
+      "book": "00000000-0000-4000-8000-000000000004"
+    },
+    {
+      "id": "pipeline_io_enqueue",
+      "method": "pipeline.enqueue",
+      "args": {
+        "handle": {
+          "$ref": "pipeline_open.handle"
+        },
+        "book": "00000000-0000-4000-8000-000000000004",
+        "path": {
+          "$var": "source"
+        },
+        "format": "txt"
+      },
+      "canonical": true
+    },
+    {
+      "id": "pipeline_step_io",
+      "method": "pipeline.step",
+      "args": {
+        "handle": {
+          "$ref": "pipeline_open.handle"
+        },
+        "now_ms": 1700000000020
+      },
+      "canonical": true,
+      "error": "PIPELINE_IO"
+    },
+    {
+      "id": "pipeline_io_cancel",
+      "method": "pipeline.cancel",
+      "args": {
+        "handle": {
+          "$ref": "pipeline_open.handle"
+        },
+        "book": "00000000-0000-4000-8000-000000000004"
+      },
+      "canonical": true
+    },
+    {
+      "id": "pipeline_idle",
+      "method": "pipeline.step",
+      "args": {
+        "handle": {
+          "$ref": "pipeline_open.handle"
+        },
+        "now_ms": 1700000000020
+      },
+      "canonical": true,
+      "expect": {
+        "outcome": "idle"
+      }
+    },
+    {
+      "id": "pipeline_close",
+      "method": "pipeline.close",
+      "args": {
+        "handle": {
+          "$ref": "pipeline_open.handle"
+        }
+      },
+      "canonical": true,
+      "expect": {
+        "closed": true
+      }
+    },
+    {
+      "id": "pipeline_close_twice",
+      "method": "pipeline.close",
+      "args": {
+        "handle": {
+          "$ref": "pipeline_open.handle"
+        }
+      },
+      "canonical": true,
+      "expect": {
+        "closed": false
+      }
+    },
+    {
+      "id": "pipeline_reopen",
+      "method": "pipeline.open",
+      "args": {
+        "out_dir": {
+          "$var": "out"
+        }
+      },
+      "canonical": true
+    },
+    {
+      "id": "pipeline_reopened_state",
+      "method": "pipeline.state",
+      "args": {
+        "handle": {
+          "$ref": "pipeline_reopen.handle"
+        },
+        "book": "00000000-0000-4000-8000-000000000001"
+      },
+      "canonical": true,
+      "expect": {
+        "state": "ready"
+      }
+    },
+    {
+      "id": "pipeline_reopened_close",
+      "method": "pipeline.close",
+      "args": {
+        "handle": {
+          "$ref": "pipeline_reopen.handle"
+        }
+      },
+      "canonical": true,
+      "expect": {
+        "closed": true
+      }
+    },
+    {
+      "id": "pdf_analyze",
+      "method": "pdf.analyze",
+      "args": {
+        "path": {
+          "$var": "pdf"
+        }
+      },
+      "canonical": true,
+      "expect": {
+        "pageCount": 3
+      }
+    },
+    {
+      "id": "pdf_bytes",
+      "method": "pdf.analyze",
+      "args": {
+        "bytes_hex": {
+          "$var": "pdf_hex"
+        }
+      },
+      "canonical": true,
+      "expect": {
+        "pageCount": 3
+      }
+    },
+    {
+      "id": "pdf_both",
+      "method": "pdf.analyze",
+      "args": {
+        "path": {
+          "$var": "pdf"
+        },
+        "bytes_hex": ""
+      },
+      "canonical": false,
+      "error": "FFI_BAD_ARGS"
+    },
+    {
+      "id": "pdf_empty",
+      "method": "pdf.analyze",
+      "args": {
+        "bytes_hex": ""
+      },
+      "canonical": true,
+      "error": "PDF_EMPTY"
+    },
+    {
+      "id": "pdf_invalid",
+      "method": "pdf.analyze",
+      "args": {
+        "bytes_hex": "616263"
+      },
+      "canonical": true,
+      "error": "PDF_NOT_PDF"
+    },
+    {
+      "id": "index_search",
+      "method": "index.search",
+      "args": {
+        "text": "中文🦀 English Phrase 中文",
+        "query": "english phrase",
+        "chunk_chars": 4
+      },
+      "canonical": true
+    },
+    {
+      "id": "index_no_tokens",
+      "method": "index.search",
+      "args": {
+        "text": "中文🦀",
+        "query": "🦀"
+      },
+      "canonical": true,
+      "expect": {
+        "hits": []
+      }
+    },
+    {
+      "id": "curl",
+      "method": "curl",
+      "args": {
+        "page_w": 600,
+        "page_h": 800,
+        "corner": "bottom_right",
+        "drag_x": 300,
+        "drag_y": 650,
+        "radius": 40
+      },
+      "canonical": true
+    },
+    {
+      "id": "curl_none",
+      "method": "curl",
+      "args": {
+        "page_w": 600,
+        "page_h": 800,
+        "corner": "bottom_right",
+        "drag_x": 300,
+        "drag_y": 650,
+        "radius": 0
+      },
+      "canonical": true,
+      "expect": {
+        "geometry": null
+      }
+    },
+    {
+      "id": "hlc_parse",
+      "method": "hlc.parse",
+      "args": {
+        "hlc": "1700000000000-3-phone-a"
+      },
+      "canonical": true,
+      "expect": {
+        "wall_ms": 1700000000000,
+        "counter": 3,
+        "device": "phone-a"
+      }
+    },
+    {
+      "id": "hlc_bad",
+      "method": "hlc.parse",
+      "args": {
+        "hlc": "-1-0-a"
+      },
+      "canonical": true,
+      "error": "SYNC_BAD_HLC"
+    },
+    {
+      "id": "sync_merge",
+      "method": "sync.merge",
+      "args": {
+        "local": [
+          {
+            "book": "00000000-0000-4000-8000-000000000001",
+            "hlc": "1700000000000-0-phone-a",
+            "op": "set",
+            "value": {
+              "kind": "progress",
+              "locator": {
+                "href": "中文.txt",
+                "locations": {
+                  "progression": 0.5
+                },
+                "perch": {
+                  "v": 1,
+                  "format": "txt",
+                  "txtOffset": 2,
+                  "txtByteOffset": 6
+                }
+              }
+            }
+          }
+        ],
+        "remote": [
+          {
+            "book": "00000000-0000-4000-8000-000000000001",
+            "annotation": "00000000-0000-4000-8000-000000000003",
+            "hlc": "1700000000001-0-tablet",
+            "op": "set",
+            "value": {
+              "kind": "annotation",
+              "annotation": {
+                "id": "00000000-0000-4000-8000-000000000003",
+                "bookId": "00000000-0000-4000-8000-000000000001",
+                "kind": "note",
+                "start": {
+                  "href": "中文.txt",
+                  "locations": {
+                    "progression": 0.5
+                  },
+                  "perch": {
+                    "v": 1,
+                    "format": "txt",
+                    "txtOffset": 2,
+                    "txtByteOffset": 6
+                  }
+                },
+                "note": "中文标注 🦀",
+                "createdAt": 1700000000000,
+                "modifiedAt": null,
+                "hlc": "1700000000001-0-tablet"
+              }
+            }
+          }
+        ]
+      },
+      "canonical": true,
+      "expect": {
+        "effects": [
+          "initialized"
+        ]
+      }
+    },
+    {
+      "id": "sync_delta",
+      "method": "sync.delta",
+      "args": {
+        "state": {
+          "$ref": "sync_merge.state"
+        },
+        "limit": 0
+      },
+      "canonical": true,
+      "expect": {
+        "hasMore": true,
+        "nextCursor": "1700000000000-0-phone-a"
+      }
+    },
+    {
+      "id": "sync_delta_next",
+      "method": "sync.delta",
+      "args": {
+        "state": {
+          "$ref": "sync_merge.state"
+        },
+        "since": {
+          "$ref": "sync_delta.nextCursor"
+        },
+        "limit": 1
+      },
+      "canonical": true,
+      "expect": {
+        "hasMore": false
+      }
+    },
+    {
+      "id": "sync_tombstone",
+      "method": "sync.merge",
+      "args": {
+        "local": {
+          "$ref": "sync_merge.state"
+        },
+        "remote": [
+          {
+            "book": "00000000-0000-4000-8000-000000000001",
+            "annotation": "00000000-0000-4000-8000-000000000003",
+            "hlc": "1700000000002-0-tablet",
+            "op": "tombstone"
+          }
+        ]
+      },
+      "canonical": true
+    },
+    {
+      "id": "sync_target_bad",
+      "method": "sync.merge",
+      "args": {
+        "remote": [
+          {
+            "book": "00000000-0000-4000-8000-000000000001",
+            "hlc": "1700000000000-0-phone-a",
+            "op": "set",
+            "value": {
+              "kind": "progress",
+              "locator": {
+                "href": "中文.txt",
+                "locations": {
+                  "progression": 0.5
+                },
+                "perch": {
+                  "v": 1,
+                  "format": "txt",
+                  "txtOffset": 2,
+                  "txtByteOffset": 6
+                }
+              }
+            },
+            "annotation": "00000000-0000-4000-8000-000000000003"
+          }
+        ]
+      },
+      "canonical": true,
+      "error": "SYNC_TARGET_MISMATCH"
+    },
+    {
+      "id": "sync_inconsistent",
+      "method": "sync.merge",
+      "args": {
+        "remote": [
+          {
+            "book": "00000000-0000-4000-8000-000000000002",
+            "annotation": "00000000-0000-4000-8000-000000000003",
+            "hlc": "1700000000001-0-tablet",
+            "op": "set",
+            "value": {
+              "kind": "annotation",
+              "annotation": {
+                "id": "00000000-0000-4000-8000-000000000003",
+                "bookId": "00000000-0000-4000-8000-000000000001",
+                "kind": "note",
+                "start": {
+                  "href": "中文.txt",
+                  "locations": {
+                    "progression": 0.5
+                  },
+                  "perch": {
+                    "v": 1,
+                    "format": "txt",
+                    "txtOffset": 2,
+                    "txtByteOffset": 6
+                  }
+                },
+                "note": "中文标注 🦀",
+                "createdAt": 1700000000000,
+                "modifiedAt": null,
+                "hlc": "1700000000001-0-tablet"
+              }
+            }
+          }
+        ]
+      },
+      "canonical": true,
+      "error": "SYNC_INCONSISTENT"
+    },
+    {
+      "id": "sync_null",
+      "method": "sync.merge",
+      "args": {
+        "local": null
+      },
+      "canonical": false,
+      "error": "FFI_BAD_ARGS"
+    },
+    {
+      "id": "sync_since_bad",
+      "method": "sync.delta",
+      "args": {
+        "since": "bad"
+      },
+      "canonical": true,
+      "error": "SYNC_BAD_HLC"
+    },
+    {
+      "id": "book_close",
+      "method": "book.close",
+      "args": {
+        "handle": {
+          "$ref": "book_open.handle"
+        }
+      },
+      "canonical": true,
+      "expect": {
+        "closed": true
+      }
+    },
+    {
+      "id": "book_close_twice",
+      "method": "book.close",
+      "args": {
+        "handle": {
+          "$ref": "book_open.handle"
+        }
+      },
+      "canonical": true,
+      "expect": {
+        "closed": false
+      }
+    },
+    {
+      "id": "book_closed_use",
+      "method": "book.search",
+      "args": {
+        "handle": {
+          "$ref": "book_open.handle"
+        },
+        "query": "中文"
+      },
+      "canonical": true,
+      "error": "BOOK_BAD_HANDLE"
+    },
+    {
+      "id": "txt_close",
+      "method": "txt.close",
+      "args": {
+        "handle": {
+          "$ref": "txt_open.handle"
+        }
+      },
+      "canonical": true,
+      "expect": {
+        "closed": true
+      }
+    },
+    {
+      "id": "txt_close_twice",
+      "method": "txt.close",
+      "args": {
+        "handle": {
+          "$ref": "txt_open.handle"
+        }
+      },
+      "canonical": true,
+      "expect": {
+        "closed": false
+      }
+    },
+    {
+      "id": "txt_closed_use",
+      "method": "txt.slice",
+      "args": {
+        "handle": {
+          "$ref": "txt_open.handle"
+        },
+        "chars": 1
+      },
+      "canonical": true,
+      "error": "TXT_BAD_HANDLE"
+    },
+    {
+      "id": "pipeline_closed_use",
+      "method": "pipeline.status",
+      "args": {
+        "handle": {
+          "$ref": "pipeline_open.handle"
+        }
+      },
+      "canonical": true,
+      "error": "PIPELINE_BAD_HANDLE"
+    },
+    {
+      "id": "book_quota_0",
+      "method": "book.open",
+      "args": {
+        "bytes_hex": "e4b8ad",
+        "format": "txt"
+      },
+      "canonical": true
+    },
+    {
+      "id": "book_quota_1",
+      "method": "book.open",
+      "args": {
+        "bytes_hex": "e4b8ad",
+        "format": "txt"
+      },
+      "canonical": true
+    },
+    {
+      "id": "book_quota_2",
+      "method": "book.open",
+      "args": {
+        "bytes_hex": "e4b8ad",
+        "format": "txt"
+      },
+      "canonical": true
+    },
+    {
+      "id": "book_quota_3",
+      "method": "book.open",
+      "args": {
+        "bytes_hex": "e4b8ad",
+        "format": "txt"
+      },
+      "canonical": true
+    },
+    {
+      "id": "book_quota_4",
+      "method": "book.open",
+      "args": {
+        "bytes_hex": "e4b8ad",
+        "format": "txt"
+      },
+      "canonical": true
+    },
+    {
+      "id": "book_quota_5",
+      "method": "book.open",
+      "args": {
+        "bytes_hex": "e4b8ad",
+        "format": "txt"
+      },
+      "canonical": true
+    },
+    {
+      "id": "book_quota_6",
+      "method": "book.open",
+      "args": {
+        "bytes_hex": "e4b8ad",
+        "format": "txt"
+      },
+      "canonical": true
+    },
+    {
+      "id": "book_quota_7",
+      "method": "book.open",
+      "args": {
+        "bytes_hex": "e4b8ad",
+        "format": "txt"
+      },
+      "canonical": true
+    },
+    {
+      "id": "book_quota_reject",
+      "method": "book.open",
+      "args": {
+        "bytes_hex": "e4b8ad",
+        "format": "txt"
+      },
+      "canonical": true,
+      "error": "BOOK_TOO_MANY_OPEN"
+    },
+    {
+      "id": "book_quota_close_0",
+      "method": "book.close",
+      "args": {
+        "handle": {
+          "$ref": "book_quota_0.handle"
+        }
+      },
+      "canonical": true,
+      "expect": {
+        "closed": true
+      }
+    },
+    {
+      "id": "book_quota_close_1",
+      "method": "book.close",
+      "args": {
+        "handle": {
+          "$ref": "book_quota_1.handle"
+        }
+      },
+      "canonical": true,
+      "expect": {
+        "closed": true
+      }
+    },
+    {
+      "id": "book_quota_close_2",
+      "method": "book.close",
+      "args": {
+        "handle": {
+          "$ref": "book_quota_2.handle"
+        }
+      },
+      "canonical": true,
+      "expect": {
+        "closed": true
+      }
+    },
+    {
+      "id": "book_quota_close_3",
+      "method": "book.close",
+      "args": {
+        "handle": {
+          "$ref": "book_quota_3.handle"
+        }
+      },
+      "canonical": true,
+      "expect": {
+        "closed": true
+      }
+    },
+    {
+      "id": "book_quota_close_4",
+      "method": "book.close",
+      "args": {
+        "handle": {
+          "$ref": "book_quota_4.handle"
+        }
+      },
+      "canonical": true,
+      "expect": {
+        "closed": true
+      }
+    },
+    {
+      "id": "book_quota_close_5",
+      "method": "book.close",
+      "args": {
+        "handle": {
+          "$ref": "book_quota_5.handle"
+        }
+      },
+      "canonical": true,
+      "expect": {
+        "closed": true
+      }
+    },
+    {
+      "id": "book_quota_close_6",
+      "method": "book.close",
+      "args": {
+        "handle": {
+          "$ref": "book_quota_6.handle"
+        }
+      },
+      "canonical": true,
+      "expect": {
+        "closed": true
+      }
+    },
+    {
+      "id": "book_quota_close_7",
+      "method": "book.close",
+      "args": {
+        "handle": {
+          "$ref": "book_quota_7.handle"
+        }
+      },
+      "canonical": true,
+      "expect": {
+        "closed": true
+      }
+    },
+    {
+      "id": "book_quota_release",
+      "method": "book.open",
+      "args": {
+        "bytes_hex": "e4b8ad",
+        "format": "txt"
+      },
+      "canonical": true
+    },
+    {
+      "id": "book_quota_release_close",
+      "method": "book.close",
+      "args": {
+        "handle": {
+          "$ref": "book_quota_release.handle"
+        }
+      },
+      "canonical": true,
+      "expect": {
+        "closed": true
+      }
+    },
+    {
+      "id": "txt_quota_0",
+      "method": "txt.open",
+      "args": {
+        "path": {
+          "$var": "source"
+        }
+      },
+      "canonical": true
+    },
+    {
+      "id": "txt_quota_1",
+      "method": "txt.open",
+      "args": {
+        "path": {
+          "$var": "source"
+        }
+      },
+      "canonical": true
+    },
+    {
+      "id": "txt_quota_2",
+      "method": "txt.open",
+      "args": {
+        "path": {
+          "$var": "source"
+        }
+      },
+      "canonical": true
+    },
+    {
+      "id": "txt_quota_3",
+      "method": "txt.open",
+      "args": {
+        "path": {
+          "$var": "source"
+        }
+      },
+      "canonical": true
+    },
+    {
+      "id": "txt_quota_reject",
+      "method": "txt.open",
+      "args": {
+        "path": {
+          "$var": "source"
+        }
+      },
+      "canonical": true,
+      "error": "TXT_TOO_MANY_OPEN"
+    },
+    {
+      "id": "txt_quota_close_0",
+      "method": "txt.close",
+      "args": {
+        "handle": {
+          "$ref": "txt_quota_0.handle"
+        }
+      },
+      "canonical": true,
+      "expect": {
+        "closed": true
+      }
+    },
+    {
+      "id": "txt_quota_close_1",
+      "method": "txt.close",
+      "args": {
+        "handle": {
+          "$ref": "txt_quota_1.handle"
+        }
+      },
+      "canonical": true,
+      "expect": {
+        "closed": true
+      }
+    },
+    {
+      "id": "txt_quota_close_2",
+      "method": "txt.close",
+      "args": {
+        "handle": {
+          "$ref": "txt_quota_2.handle"
+        }
+      },
+      "canonical": true,
+      "expect": {
+        "closed": true
+      }
+    },
+    {
+      "id": "txt_quota_close_3",
+      "method": "txt.close",
+      "args": {
+        "handle": {
+          "$ref": "txt_quota_3.handle"
+        }
+      },
+      "canonical": true,
+      "expect": {
+        "closed": true
+      }
+    },
+    {
+      "id": "txt_quota_release",
+      "method": "txt.open",
+      "args": {
+        "path": {
+          "$var": "source"
+        }
+      },
+      "canonical": true
+    },
+    {
+      "id": "txt_quota_release_close",
+      "method": "txt.close",
+      "args": {
+        "handle": {
+          "$ref": "txt_quota_release.handle"
+        }
+      },
+      "canonical": true,
+      "expect": {
+        "closed": true
+      }
+    },
+    {
+      "id": "context_first_open",
+      "method": "context.open",
+      "args": {},
+      "canonical": true,
+      "expect": {
+        "context": 1
+      }
+    },
+    {
+      "id": "context_second_open",
+      "method": "context.open",
+      "args": {},
+      "canonical": true,
+      "expect": {
+        "context": 2
+      }
+    },
+    {
+      "id": "context_first_txt",
+      "method": "txt.open",
+      "args": {
+        "path": {
+          "$var": "source"
+        }
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "context_first_open.context"
+      }
+    },
+    {
+      "id": "context_second_txt",
+      "method": "txt.open",
+      "args": {
+        "path": {
+          "$var": "source"
+        }
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "context_second_open.context"
+      }
+    },
+    {
+      "id": "context_first_pipeline",
+      "method": "pipeline.open",
+      "args": {
+        "out_dir": {
+          "$var": "context_out_first"
+        }
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "context_first_open.context"
+      },
+      "expect": {
+        "recovered": []
+      }
+    },
+    {
+      "id": "context_second_pipeline",
+      "method": "pipeline.open",
+      "args": {
+        "out_dir": {
+          "$var": "context_out_second"
+        }
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "context_second_open.context"
+      },
+      "expect": {
+        "recovered": []
+      }
+    },
+    {
+      "id": "context_first_pipeline_quota",
+      "method": "pipeline.open",
+      "args": {
+        "out_dir": {
+          "$var": "context_out_extra"
+        }
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "context_first_open.context"
+      },
+      "error": "PIPELINE_TOO_MANY_OPEN"
+    },
+    {
+      "id": "context_cross_use",
+      "method": "txt.slice",
+      "args": {
+        "handle": {
+          "$ref": "context_first_txt.handle"
+        },
+        "chars": 1
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "context_second_open.context"
+      },
+      "error": "CONTEXT_HANDLE_MISMATCH"
+    },
+    {
+      "id": "context_first_close",
+      "method": "context.close",
+      "args": {
+        "context": {
+          "$ref": "context_first_open.context"
+        }
+      },
+      "canonical": true,
+      "expect": {
+        "closed": true,
+        "released": {
+          "books": 0,
+          "txts": 1,
+          "pipelines": 1
+        }
+      }
+    },
+    {
+      "id": "context_second_slice",
+      "method": "txt.slice",
+      "args": {
+        "handle": {
+          "$ref": "context_second_txt.handle"
+        },
+        "chars": 1
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "context_second_open.context"
+      },
+      "expect": {
+        "text": "中"
+      }
+    },
+    {
+      "id": "context_second_pipeline_status",
+      "method": "pipeline.status",
+      "args": {
+        "handle": {
+          "$ref": "context_second_pipeline.handle"
+        }
+      },
+      "canonical": true,
+      "context": {
+        "$ref": "context_second_open.context"
+      },
+      "expect": {
+        "idle": true
+      }
+    },
+    {
+      "id": "context_closed_call",
+      "method": "version",
+      "args": {},
+      "canonical": true,
+      "context": {
+        "$ref": "context_first_open.context"
+      },
+      "error": "CONTEXT_BAD_HANDLE"
+    },
+    {
+      "id": "context_first_close_twice",
+      "method": "context.close",
+      "args": {
+        "context": {
+          "$ref": "context_first_open.context"
+        }
+      },
+      "canonical": true,
+      "expect": {
+        "closed": false,
+        "released": {
+          "books": 0,
+          "txts": 0,
+          "pipelines": 0
+        }
+      }
+    },
+    {
+      "id": "context_second_close",
+      "method": "context.close",
+      "args": {
+        "context": {
+          "$ref": "context_second_open.context"
+        }
+      },
+      "canonical": true,
+      "expect": {
+        "closed": true,
+        "released": {
+          "books": 0,
+          "txts": 1,
+          "pipelines": 1
+        }
+      }
+    }
+  ]
+}

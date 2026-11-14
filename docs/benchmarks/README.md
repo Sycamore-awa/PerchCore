@@ -99,4 +99,23 @@ MiB/s 用清楚的逻辑工作字节计算：登记为首尾窗口总字节，�
 
 ## 本地基线
 
-[2026-11-01 Linux 基线](2026-11-01-linux.md) 记录本地结果和解读，附两套 194 案例主报告和超限报告。CI 仅运行小规模冒烟与正确性校验，远端机器的耗时不自动成为发布性能门槛。BASE-02 收口后按 [路线图](../roadmap.md) 继续 API-01，保留现有 ABI、存储格式和资源限额。
+[2026-11-01 Linux 基线](2026-11-01-linux.md) 记录本地结果和解读，附两套 194 案例主报告和超限报告。CI 仅运行小规模冒烟与正确性校验，远端机器的耗时不自动成为发布性能门槛。当前开发队列见 [路线图](../roadmap.md)，保留现有 ABI、存储格式和资源限额。
+
+## LOC-01 源映射测量
+
+[tools/bench_source_map.py](../../tools/bench_source_map.py) 通过同一 API v1.4 release 库测 TXT/EPUB 的映射产物增量、路径打开、无映射/带映射重开和 book.locate。`just bench-source-map` 构建库后测正确性集；完整的 [Linux LOC-01 报告](2026-11-13-linux-source-map.md) 包含两套样本的 56 项测量，可按以下命令复现：
+
+```sh
+cargo build -p perch-ffi --release --locked
+python3 tools/make_corpus.py --profile performance --scale 64 --output target/loc01/performance-corpus
+python3 tools/bench_source_map.py \
+  --corpus examples/data/corpus \
+  --corpus target/loc01/performance-corpus \
+  --output docs/benchmarks/2026-11-13-linux-source-map.json
+```
+
+默认每项 30 次计时、2 次预热；`--samples` 可选 indexed 样本，`--iterations` / `--warmups` 可调。生成输入、PathStore 产物准备、库加载和定位句柄/查询准备在计时外；每轮计时包含 JSON/C ABI、文件读取及核心工作，关闭和结果校验在计时后。
+
+重开对照的 index 与 body 完全相同，旧形状仅省略可选 sourceMap，两个分支都运行当前实现。路径打开只测新实现，不能解释为改动前后抽取耗时对比。JSON 保留原始耗时、源/入口/库 SHA-256、样本规模、区间数和产物大小。
+
+每样本/方法使用新的 exec 进程。Linux 保留准备前后、每轮操作后及清理后的 VmRSS，并保留最终 VmHWM 原值；`maximum_recorded_rss` 取所有这些记录的最大值，Markdown 对应“最大记录 RSS”。Linux 的近似/异步计数可能让最终 VmHWM 小于先前 VmRSS，采样也不保证全部瞬时峰值。RSS 包含 Python/Rust、准备和校验，不能把进程差值解释为 SDK 独占分配量。系统页缓存未控制，本报告不代表冷缓存或设备预算。

@@ -229,12 +229,20 @@ class BookSearchHit {
 class PerchServices {
   PerchServices(this.worker);
   final PerchWorker worker;
+  late final Future<PerchContext> _context = worker
+      .call('context.open')
+      .then((value) => PerchContext(value['context'] as int));
   final Set<_AsyncHandle> _handles = {};
   bool _closing = false;
   Future<void>? _shutdown;
   void _ensureOpen() {
     if (_closing) throw StateError('核心服务正在关闭');
   }
+
+  Future<Map<String, dynamic>> _call(
+    String method, [
+    Map<String, dynamic>? args,
+  ]) async => worker.callInContext(await _context, method, args);
 
   Future<FileFingerprint> fingerprintPath(String path) async {
     _ensureOpen();
@@ -250,7 +258,7 @@ class PerchServices {
     _ensureOpen();
     String hex(List<int> b) =>
         b.map((n) => n.toRadixString(16).padLeft(2, '0')).join();
-    return (await worker.call('fingerprint', {
+    return (await _call('fingerprint', {
           'size': size,
           'head_hex': hex(head),
           'tail_hex': hex(tail),
@@ -260,7 +268,48 @@ class PerchServices {
 
   Future<Map<String, dynamic>> analyzePdf(String path) {
     _ensureOpen();
-    return worker.call('pdf.analyze', {'path': path});
+    return _call('pdf.analyze', {'path': path});
+  }
+
+  /// 只返回 TXT 统计；文件读取和解码由 worker 内的核心完成。
+  Future<Map<String, dynamic>> inspectTextPath(
+    String path, {
+    String? encoding,
+  }) {
+    _ensureOpen();
+    return _call('txt.inspect', {
+      'path': path,
+      if (encoding != null) 'encoding': encoding,
+    });
+  }
+
+  Future<Map<String, dynamic>> refineBookPath(
+    String path, {
+    int? maxChars,
+    String? format,
+  }) {
+    _ensureOpen();
+    return _call('jobs.refine', {
+      'path': path,
+      if (maxChars != null) 'max_chars': maxChars,
+      if (format != null) 'format': format,
+    });
+  }
+
+  Future<AsyncBookHandle> openBookPath(
+    String path, {
+    int? chunkChars,
+    String? format,
+  }) async {
+    _ensureOpen();
+    final r = await _call('book.open', {
+      'path': path,
+      if (chunkChars != null) 'chunk_chars': chunkChars,
+      if (format != null) 'format': format,
+    });
+    final h = AsyncBookHandle._(this, r);
+    _handles.add(h);
+    return h;
   }
 
   Future<PipelineHandle> openPipeline(
@@ -270,7 +319,7 @@ class PerchServices {
     int? chunkChars,
   }) async {
     _ensureOpen();
-    final r = await worker.call('pipeline.open', {
+    final r = await _call('pipeline.open', {
       'out_dir': outDir,
       'policy': policy.toJson(),
       if (maxChars != null) 'max_chars': maxChars,
@@ -291,7 +340,7 @@ class PerchServices {
 
   Future<AsyncTxtHandle> openTxt(String path, {String? encoding}) async {
     _ensureOpen();
-    final r = await worker.call('txt.open', {
+    final r = await _call('txt.open', {
       'path': path,
       if (encoding != null) 'encoding': encoding,
     });
@@ -305,7 +354,7 @@ class PerchServices {
     required String textPath,
   }) async {
     _ensureOpen();
-    final r = await worker.call('book.load', {
+    final r = await _call('book.load', {
       'index_path': indexPath,
       'text_path': textPath,
     });
@@ -317,13 +366,18 @@ class PerchServices {
   Future<void> close() => _shutdown ??= _close();
   Future<void> _close() async {
     _closing = true;
-    // A barrier lets accepted open calls register their handles before closing.
+    PerchContext? context;
     try {
-      await worker.call('version');
+      context = await _context;
+      // A barrier lets accepted open calls register their handles before closing.
+      await worker.callInContext(context, 'version');
+      for (final handle in _handles.toList()) {
+        await handle.close();
+      }
     } finally {
       try {
-        for (final handle in _handles.toList()) {
-          await handle.close();
+        if (context != null) {
+          await worker.call('context.close', {'context': context.id});
         }
       } finally {
         await worker.dispose();
@@ -344,12 +398,12 @@ abstract class _AsyncHandle {
   ]) {
     if (_closing != null || owner._closing)
       return Future.error(StateError('$kind 句柄已关闭'));
-    return owner.worker.call('$kind.$method', {'handle': handle, ...args});
+    return owner._call('$kind.$method', {'handle': handle, ...args});
   }
 
   Future<bool> close() => _closing ??= _close();
   Future<bool> _close() async {
-    final r = await owner.worker.call('$kind.close', {'handle': handle});
+    final r = await owner._call('$kind.close', {'handle': handle});
     owner._handles.remove(this);
     return r['closed'] as bool;
   }
@@ -484,4 +538,14 @@ class AsyncBookHandle extends _AsyncHandle {
         )
         .toList(growable: false);
   }
+
+  /// Resolve a hit from this handle using the source version indexed at import.
+  /// Missing/unsupported/invalid maps retain their stable core error codes.
+  Future<BookSourceLocation> locate(BookSearchHit hit) async =>
+      BookSourceLocation.fromJson(
+        await _call('locate', {
+          'char_start': hit.charStart,
+          'char_end': hit.charEnd,
+        }),
+      );
 }

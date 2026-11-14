@@ -6,7 +6,7 @@ use std::path::PathBuf;
 
 use perch_core::{
     index::Index,
-    jobs::{BOOK_TEXT_VERSION, book_text_from_slice},
+    jobs::{BOOK_TEXT_VERSION, book_text_from_slice, mapped_book_text_from_slice},
     model::{Format, LOCATOR_VERSION, Locator},
 };
 
@@ -55,6 +55,12 @@ fn text_v0_fixture_keeps_the_legacy_epub_default() {
     assert_eq!(text.chapters[0].start_char, 0);
     assert_eq!(text.chapters[0].end_char, 1);
     assert!(!text.truncated);
+    let mapped = mapped_book_text_from_slice(&bytes).unwrap();
+    assert_eq!(mapped.book_text(), &text);
+    assert_eq!(
+        mapped.locate(0, 1).unwrap_err().code(),
+        "BOOK_SOURCE_MAP_MISSING"
+    );
 }
 
 #[test]

@@ -12,7 +12,7 @@ python3 tools/make_sample_epub.py target/sample.epub
 cargo run -p perch-core --example inspect -- target/sample.epub 索引
 ```
 
-示例实现位于 [inspect.rs](../crates/perch-core/examples/inspect.rs)。PDF 输入只返回结构信息。
+示例实现位于 [inspect.rs](../crates/perch-core/examples/inspect.rs)。EPUB/TXT 搜索输出命中区间和对应的源端点，包括 TXT 原解码偏移或 EPUB 节点路径与 UTF-16 偏移；PDF 输入只返回结构信息。位置规则见 [搜索命中回源文本](../docs/source-location.md)。
 
 [可复现样本集](data/corpus/README.md) 提供 EPUB 2/3、多编码 TXT、Unicode 与分片边界、超长行和 PDF 大纲样本，附 SHA-256 与预期文本，可用于正确性回归和后续性能测量：
 
@@ -47,7 +47,7 @@ macOS 将库文件后缀替换为 `.dylib`。C 示例只打印原始 JSON，业�
 
 [replay.c](c/replay.c) 是可连续调用的 C 客户端：stdin 每行输入 `method<TAB>args_json`，stdout 每行输出一条原始 JSON，句柄在整个进程中有效。CMake 同时构建 perch-replay；`--self-test` 检查输入字节长度、UTF-8 和 NULL 规则。
 
-完整 [接口样例与验证工具](../api/README.md) 将这个客户端与 Dart 的 tool/api_replay.dart 同时运行，覆盖所有 31 个方法；与一次调用后退出的最小示例用途不同。
+完整 [接口样例与验证工具](../api/README.md) 将这个客户端与 Dart 的 tool/api_replay.dart 同时运行，各重放 261 次调用，覆盖所有 35 个方法、显式 context、源定位和产物恢复；与一次调用后退出的最小示例用途不同。
 
 ## Dart：后台调用与 TXT 切片
 
@@ -59,3 +59,16 @@ dart run example/main.dart ../../../target/release/libperch_ffi.so ../../../exam
 ```
 
 此示例使用常驻 worker 和类型化 TXT 服务，打开后只返回少量文本，最后关闭句柄与 worker。它不需要 Flutter。
+
+## Dart：阅读器宿主流程
+
+```sh
+cargo build -p perch-ffi --release --locked
+cd bindings/dart/perch_core
+dart pub get
+dart run example/reader_flow.dart \
+  ../../../target/release/libperch_ffi.so \
+  ../../../examples/data/sample.txt 文字
+```
+
+该示例使用公开类型化门面串起阅读器宿主的完整核心流程：路径导入、refine/index、模拟 App 重启、Ready 恢复、落盘加载、搜索、命中回源，以及 TXT 切片或 EPUB 节点坐标输出。默认使用临时产物目录；第四个参数可指定保留的目录。它不包含 UI/排版，真实页面跳转仍需阅读器 App 提供 DOM 或 TXT 视图集成。

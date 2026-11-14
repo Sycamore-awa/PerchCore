@@ -48,7 +48,7 @@ def main() -> None:
         for line in result.stdout.splitlines()
         if len(fields := line.split()) >= 2 and fields[-2] == "T"
     }
-    for symbol in ("_perch_call", "_perch_string_free"):
+    for symbol in ("_perch_call", "_perch_context_call", "_perch_string_free"):
         if symbol not in symbols:
             raise SystemExit(f"missing global export: {symbol}")
         print(f"export verified: {symbol}")

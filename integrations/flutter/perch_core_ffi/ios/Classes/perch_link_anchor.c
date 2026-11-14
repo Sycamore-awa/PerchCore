@@ -2,7 +2,7 @@
  * 链接锚点：强制链接器把 Rust 静态库里对应的目标文件保留下来。
  *
  * 为什么需要它：
- *   `perch_call` / `perch_string_free` 没有任何 Swift/ObjC 代码调用，
+ *   PerchCore 的 C ABI 符号没有任何 Swift/ObjC 代码直接调用，
  *   默认会被链接器当作死代码丢掉。虽然 podspec 里写了 `-force_load`，
  *   但 `pod_target_xcconfig` 作用在**pod 自己的 target**（静态库，没有链接步骤），
  *   未必能影响 App 的最终链接。
@@ -14,9 +14,13 @@
  */
 
 #include <stddef.h>
+#include <stdint.h>
 
 extern char *perch_call(const unsigned char *method, size_t method_len,
                         const unsigned char *args, size_t args_len);
+extern char *perch_context_call(uint64_t context,
+                                const unsigned char *method, size_t method_len,
+                                const unsigned char *args, size_t args_len);
 extern void perch_string_free(char *ptr);
 
 /*
@@ -26,5 +30,6 @@ extern void perch_string_free(char *ptr);
 void perch_link_anchor(void) {
     /* 取函数地址即可建立重定位，不需要真的调用 */
     (void)(&perch_call);
+    (void)(&perch_context_call);
     (void)(&perch_string_free);
 }
